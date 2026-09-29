@@ -64,8 +64,7 @@ export default function TopBar() {
           {settings?.workerEmail ? (
             <>
               <span
-                className="text-sm text-emerald-100/90 font-mono truncate max-w-72"
-                title={settings.workerEmail}
+                className="text-sm text-emerald-100/90 font-mono whitespace-nowrap"
               >
                 {settings.workerEmail}
               </span>
