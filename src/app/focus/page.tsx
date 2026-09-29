@@ -312,9 +312,16 @@ export default function FocusPage() {
                 <span className="text-[0.65rem] text-emerald-600">Editable</span>
               </label>
               <input
+                type="number"
+                min="1"
                 className="field bg-emerald-50/60 border-emerald-200 font-semibold"
-                value={`Task ${task.taskNumber}`}
-                disabled
+                defaultValue={task.taskNumber}
+                key={`tasknum-${task.id}-${task.taskNumber}`}
+                onBlur={(e) => {
+                  const v = Math.round(Number(e.target.value));
+                  if (!Number.isNaN(v) && v >= 1 && v !== task.taskNumber)
+                    patch({ taskNumber: v });
+                }}
               />
             </div>
             <div>

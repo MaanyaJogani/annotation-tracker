@@ -42,6 +42,17 @@ export async function PATCH(request: Request, { params }: Params) {
     const body = await request.json();
     const updates: Record<string, unknown> = { updatedAt: new Date() };
 
+    if (body.taskNumber !== undefined) {
+      const v = Math.round(Number(body.taskNumber));
+      if (Number.isNaN(v) || v < 1) return bad("Invalid task number");
+      const [dup] = await db
+        .select({ id: tasks.id })
+        .from(tasks)
+        .where(eq(tasks.taskNumber, v));
+      if (dup && dup.id !== id)
+        return bad(`Task ${v} already exists`, 409);
+      updates.taskNumber = v;
+    }
     if (body.projectId !== undefined) {
       const [project] = await db
         .select()
@@ -88,6 +99,17 @@ export async function PATCH(request: Request, { params }: Params) {
       .returning();
 
     if (!row) return bad("Task not found", 404);
+
+    // Keep auto-numbering ahead of any manually chosen number
+    if (updates.taskNumber !== undefined) {
+      const [{ max }] = await db
+        .select({ max: sql<number>`coalesce(max(task_number), 0)::int` })
+        .from(tasks);
+      await db.execute(
+        sql.raw(`ALTER TABLE tasks ALTER COLUMN task_number RESTART WITH ${max + 1}`)
+      );
+    }
+
     return ok({ ...row, minRate: Number(row.minRate), maxRate: Number(row.maxRate) });
   } catch (err) {
     return serverError(err);

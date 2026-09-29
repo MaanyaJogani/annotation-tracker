@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { db } from "@database/client";
 import { projects, statuses, tasks } from "@database/schema";
 import { bad, ok, serverError } from "@/lib/api";
@@ -65,9 +65,22 @@ export async function POST(request: Request) {
       ? (body.approvalStatus as ApprovalStatus)
       : "pending";
 
+    let taskNumber: number | undefined;
+    if (body.taskNumber !== undefined) {
+      const v = Math.round(Number(body.taskNumber));
+      if (Number.isNaN(v) || v < 1) return bad("Invalid task number");
+      const [dup] = await db
+        .select({ id: tasks.id })
+        .from(tasks)
+        .where(eq(tasks.taskNumber, v));
+      if (dup) return bad(`Task ${v} already exists`, 409);
+      taskNumber = v;
+    }
+
     const [row] = await db
       .insert(tasks)
       .values({
+        ...(taskNumber !== undefined ? { taskNumber } : {}),
         projectId,
         taskUuid: String(body.taskUuid ?? ""),
         stageUuid: String(body.stageUuid ?? ""),
@@ -88,6 +101,16 @@ export async function POST(request: Request) {
         notes: String(body.notes ?? ""),
       })
       .returning();
+
+    // Keep auto-numbering ahead of any manually chosen number
+    if (taskNumber !== undefined) {
+      const [{ max }] = await db
+        .select({ max: sql<number>`coalesce(max(task_number), 0)::int` })
+        .from(tasks);
+      await db.execute(
+        sql.raw(`ALTER TABLE tasks ALTER COLUMN task_number RESTART WITH ${max + 1}`)
+      );
+    }
 
     return ok(
       { ...row, minRate: Number(row.minRate), maxRate: Number(row.maxRate) },

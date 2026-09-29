@@ -54,7 +54,7 @@ export const statuses = pgTable("statuses", {
 
 export const tasks = pgTable("tasks", {
   id: uuid("id").defaultRandom().primaryKey(),
-  taskNumber: integer("task_number").notNull().generatedAlwaysAsIdentity(),
+  taskNumber: integer("task_number").notNull().generatedByDefaultAsIdentity(),
   projectId: uuid("project_id")
     .notNull()
     .references(() => projects.id, { onDelete: "restrict" }),

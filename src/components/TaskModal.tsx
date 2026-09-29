@@ -41,6 +41,7 @@ export default function TaskModal({ task, open, onClose, onSaved }: Props) {
   useEffect(() => {
     if (!task) return;
     setForm({
+      taskNumber: task.taskNumber,
       projectId: task.projectId,
       taskUuid: task.taskUuid,
       stageUuid: task.stageUuid,
@@ -68,6 +69,7 @@ export default function TaskModal({ task, open, onClose, onSaved }: Props) {
     setSaving(true);
     setError("");
     const payload: Record<string, unknown> = {
+      taskNumber: Number(form.taskNumber ?? task!.taskNumber),
       projectId: form.projectId,
       taskUuid: form.taskUuid,
       stageUuid: form.stageUuid,
@@ -117,14 +119,21 @@ export default function TaskModal({ task, open, onClose, onSaved }: Props) {
               <label className="label flex items-baseline justify-between mb-1.5">
                 <span>Task Number</span>
                 <span className="text-[0.65rem] text-emerald-600 font-medium">
-                  Auto-incremented
+                  Auto — editable
                 </span>
               </label>
-              <input
-                className="field bg-emerald-50/60 border-emerald-200 font-semibold"
-                value={`Task ${task.taskNumber}`}
-                disabled
-              />
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-emerald-700/80 pointer-events-none">
+                  Task
+                </span>
+                <input
+                  type="number"
+                  min="1"
+                  className="field bg-emerald-50/60 border-emerald-200 font-semibold field-tasknum"
+                  value={Number(form.taskNumber ?? task.taskNumber)}
+                  onChange={(e) => setForm({ ...form, taskNumber: Number(e.target.value) })}
+                />
+              </div>
             </div>
             <div>
               <label className="label block mb-1.5">Project</label>

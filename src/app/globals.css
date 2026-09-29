@@ -99,6 +99,9 @@ body {
 .field-currency {
   padding-left: 1.75rem;
 }
+.field-tasknum {
+  padding-left: 3.25rem;
+}
 
 .label {
   font-size: 0.8rem;

@@ -15,6 +15,13 @@
       "when": 1790685631736,
       "tag": "0001_seed_initial_data",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790693672654,
+      "tag": "0002_task_number_by_default",
+      "breakpoints": true
     }
   ]
 }

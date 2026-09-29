@@ -18,6 +18,7 @@ export default function CreateTaskModal({ open, onClose, onCreated }: Props) {
   const [nextNumber, setNextNumber] = useState<number | null>(null);
   const [form, setForm] = useState({
     projectId: "",
+    taskNumber: "",
     taskUuid: "",
     stageUuid: "",
     approvalStatus: "pending",
@@ -50,6 +51,7 @@ export default function CreateTaskModal({ open, onClose, onCreated }: Props) {
         const def = s.find((x) => x.isDefault);
         setForm((f) => ({
           ...f,
+          taskNumber: f.taskNumber || String(next),
           statusId: f.statusId || def?.id || "",
           projectId: f.projectId || p[0]?.id || "",
           minRate: f.minRate || String(p[0]?.minRate ?? ""),
@@ -91,6 +93,7 @@ export default function CreateTaskModal({ open, onClose, onCreated }: Props) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         projectId: form.projectId,
+        taskNumber: Number(form.taskNumber) || undefined,
         taskUuid: form.taskUuid,
         stageUuid: form.stageUuid,
         approvalStatus: form.approvalStatus,
@@ -112,6 +115,7 @@ export default function CreateTaskModal({ open, onClose, onCreated }: Props) {
     }
     setForm({
       projectId: form.projectId,
+      taskNumber: String((nextNumber ?? 0) + 1),
       taskUuid: "",
       stageUuid: "",
       approvalStatus: "pending",
@@ -152,11 +156,19 @@ export default function CreateTaskModal({ open, onClose, onCreated }: Props) {
                   Auto-incremented
                 </span>
               </label>
-              <input
-                className="field bg-emerald-50/60 border-emerald-200 font-semibold"
-                value={nextNumber ? `Task ${nextNumber}` : "…"}
-                disabled
-              />
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-emerald-700/80 pointer-events-none">
+                  Task
+                </span>
+                <input
+                  type="number"
+                  min="1"
+                  className="field bg-emerald-50/60 border-emerald-200 font-semibold field-tasknum"
+                  value={form.taskNumber || nextNumber || ""}
+                  onChange={(e) => setForm({ ...form, taskNumber: e.target.value })}
+                  placeholder={nextNumber ? String(nextNumber) : "…"}
+                />
+              </div>
             </div>
             <div>
               <label className="label block mb-1.5">Project</label>
