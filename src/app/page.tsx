@@ -37,18 +37,21 @@ const columns = [
     title: "In Progress",
     dot: "bg-amber-400",
     side: "All active",
+    tint: "bg-amber-50/70 border-amber-100",
   },
   {
     group: "completed" as const,
     title: "Completed & Verified",
     dot: "bg-emerald-500",
     side: "Recent 5",
+    tint: "bg-emerald-50/70 border-emerald-100",
   },
   {
     group: "paid" as const,
     title: "Paid & Closed",
     dot: "bg-violet-500",
     side: "Settled",
+    tint: "bg-violet-50/70 border-violet-100",
   },
 ];
 
@@ -366,7 +369,7 @@ export default function Dashboard() {
           const shown =
             col.group === "completed" ? colTasks.slice(0, 5) : colTasks;
           return (
-            <div key={col.group} className="rounded-2xl bg-slate-100/60 border border-line p-3 space-y-3">
+            <div key={col.group} className={`rounded-2xl border-2 p-5 space-y-4 ${col.tint}`}>
               <div className="flex items-center justify-between px-1">
                 <div className="flex items-center gap-2">
                   <span className={`w-2 h-2 rounded-full ${col.dot}`} />
