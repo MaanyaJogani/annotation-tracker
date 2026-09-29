@@ -260,7 +260,10 @@ export default function KanbanCard({
           <p className="text-slate-700 font-medium mt-0.5">{formatDateTime(task.startAt)}</p>
         </div>
         <div className="text-right">
-          <p className={`font-bold text-[0.65rem] uppercase tracking-wide ${running ? "text-amber-600" : "text-muted"}`}>
+          <p className="flex items-center justify-end gap-1.5 text-emerald-700 font-bold text-[0.65rem] uppercase tracking-wide">
+            <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <rect x="3" y="5" width="18" height="16" rx="2" /><path d="M8 3v4M16 3v4M3 11h18" />
+            </svg>
             End
           </p>
           <p className={`font-medium mt-0.5 ${running ? "text-amber-600 italic" : "text-slate-700"}`}>
