@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { RateInfo, Settings } from "@/lib/types";
 import { formatRateINR } from "@/lib/format";
+import { copyText } from "@/lib/clipboard";
 import CreateTaskModal from "@/components/CreateTaskModal";
 
 export default function TopBar() {
@@ -45,12 +46,10 @@ export default function TopBar() {
 
   async function copyEmail() {
     if (!settings?.workerEmail) return;
-    try {
-      await navigator.clipboard.writeText(settings.workerEmail);
+    const ok = await copyText(settings.workerEmail);
+    if (ok) {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
-    } catch {
-      /* clipboard unavailable */
     }
   }
 

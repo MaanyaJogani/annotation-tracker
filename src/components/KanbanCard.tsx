@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { Task } from "@/lib/types";
 import { formatDateTime, formatMinutesChip } from "@/lib/format";
 import { inrRangeText, projectedUsd, usdRangeText } from "@/lib/payout";
+import { copyText } from "@/lib/clipboard";
 
 interface Props {
   task: Task;
@@ -41,12 +42,14 @@ function CopyField({ label, value }: { label: string; value: string }) {
       <button
         title={copied ? "Copied!" : `Copy ${label.toLowerCase()}`}
         disabled={!value}
-        onClick={(e) => {
+        onClick={async (e) => {
           e.stopPropagation();
           if (!value) return;
-          navigator.clipboard.writeText(value).catch(() => {});
-          setCopied(true);
-          setTimeout(() => setCopied(false), 1200);
+          const ok = await copyText(value);
+          if (ok) {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1200);
+          }
         }}
         className="shrink-0 text-muted hover:text-primary disabled:opacity-30 disabled:hover:text-muted"
       >
