@@ -66,7 +66,7 @@ export default function TopBar() {
             title={copied ? "Copied!" : "Copy email"}
             className="text-sm text-emerald-100/90 font-mono truncate hover:text-white transition-colors"
           >
-            {settings?.workerEmail || "set email in Settings"}
+            {settings?.workerEmail || "set email in Settings →"}
           </button>
           <svg
             className="w-3.5 h-3.5 opacity-60 shrink-0"

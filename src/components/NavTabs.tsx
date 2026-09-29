@@ -11,6 +11,7 @@ const tabs = [
   { href: "/sheet", label: "Detailed Sheet", icon: "▤" },
   { href: "/payouts", label: "Payout Ledger", icon: "₹" },
   { href: "/projects", label: "Projects", icon: "◧" },
+  { href: "/settings", label: "Settings", icon: "⚙" },
 ];
 
 export default function NavTabs() {

@@ -1,5 +1,7 @@
 allowBuilds:
   esbuild: true
+  inotify: set this to true or false
+  pnpm: set this to true or false
   unrs-resolver: true
 minimumReleaseAgeExclude:
   - '@next/env@16.3.7'
