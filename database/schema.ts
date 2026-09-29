@@ -1,4 +1,3 @@
-import { sql } from "drizzle-orm";
 import {
   boolean,
   date,
@@ -50,6 +49,7 @@ export const statuses = pgTable("statuses", {
   sortOrder: integer("sort_order").notNull().default(0),
   isDefault: boolean("is_default").notNull().default(false),
   isActive: boolean("is_active").notNull().default(true),
+  showOnBoard: boolean("show_on_board").notNull().default(true),
 });
 
 export const tasks = pgTable("tasks", {
@@ -110,5 +110,3 @@ export const settings = pgTable("settings", {
   rateSource: rateSourceEnum("rate_source").notNull().default("auto"),
   rateUpdatedAt: timestamp("rate_updated_at", { withTimezone: true }),
 });
-
-export const taskNumberSeq = sql`nextval(pg_get_serial_sequence('tasks','task_number'))`;
