@@ -170,37 +170,43 @@ export default function Dashboard() {
   return (
     <div className="space-y-5">
       {/* Hero banner */}
-      <section className="rounded-2xl p-6 text-white bg-gradient-to-br from-hero-from to-hero-to shadow-lg">
+      <section
+        className="rounded-2xl p-6 text-white shadow-lg"
+        style={{
+          background:
+            "linear-gradient(90deg, #3b1467 0%, #12071f 50%, #3b1467 100%)",
+        }}
+      >
         <div className="flex items-start gap-4">
-          <div className="w-11 h-11 rounded-xl bg-white/15 flex items-center justify-center text-xl shrink-0">
+          <div className="w-11 h-11 rounded-xl bg-white/10 flex items-center justify-center text-xl shrink-0">
             ₹
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="chip bg-white/15 border border-white/20 text-violet-100">
+              <span className="chip bg-white/10 border border-white/10 text-violet-200/90">
                 ◎ CUMULATIVE WEEKLY PAYOUTS RECEIVED
               </span>
-              <span className="chip bg-white/10 border border-white/15 text-white/80">
+              <span className="chip bg-white/5 border border-white/10 text-white/60">
                 {stats.ledger.count} weekly payouts logged
               </span>
             </div>
             <div className="mt-3 flex flex-wrap items-baseline gap-x-8 gap-y-2">
               <div>
-                <p className="text-[0.65rem] font-bold text-white/70 uppercase tracking-wider">
+                <p className="text-[0.65rem] font-bold text-violet-200/60 uppercase tracking-wider">
                   Total Paid USD
                 </p>
                 <p className="text-3xl font-bold">{formatUSD(stats.ledger.totalUsd)}</p>
               </div>
-              <div className="w-px h-10 bg-white/20 hidden sm:block" />
+              <div className="w-px h-10 bg-white/10 hidden sm:block" />
               <div>
-                <p className="text-[0.65rem] font-bold text-white/70 uppercase tracking-wider">
+                <p className="text-[0.65rem] font-bold text-violet-200/60 uppercase tracking-wider">
                   Total Paid INR
                 </p>
                 <p className="text-3xl font-bold text-amber-300">{formatINR(stats.ledger.totalInr)}</p>
               </div>
             </div>
-            <p className="mt-3 text-xs text-white/70 flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-violet-300" />
+            <p className="mt-3 text-xs text-violet-200/60 flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-violet-300/70" />
               Estimated {usdRangeText(stats.usdMin, stats.usdMax)} · Calculated by Status –{" "}
               {byStatusText}
             </p>
