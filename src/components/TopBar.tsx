@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { RateInfo, Settings } from "@/lib/types";
 import { formatRateINR } from "@/lib/format";
-import QuickTaskModal from "@/components/QuickTaskModal";
+import CreateTaskModal from "@/components/CreateTaskModal";
 
 export default function TopBar() {
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -130,7 +130,7 @@ export default function TopBar() {
           </button>
         </div>
       </div>
-      <QuickTaskModal
+      <CreateTaskModal
         open={showQuickTask}
         onClose={() => setShowQuickTask(false)}
         onCreated={() => {

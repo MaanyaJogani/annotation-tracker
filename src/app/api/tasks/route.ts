@@ -77,8 +77,14 @@ export async function POST(request: Request) {
         startAt: body.startAt ? new Date(body.startAt) : null,
         endAt: body.endAt ? new Date(body.endAt) : null,
         timeSpentMinutes: Math.max(0, Math.round(Number(body.timeSpentMinutes ?? 0))),
-        minRate: project.minRate,
-        maxRate: project.maxRate,
+        minRate:
+          body.minRate !== undefined && Number(body.minRate) >= 0
+            ? Number(body.minRate).toFixed(2)
+            : project.minRate,
+        maxRate:
+          body.maxRate !== undefined && Number(body.maxRate) >= 0
+            ? Number(body.maxRate).toFixed(2)
+            : project.maxRate,
         notes: String(body.notes ?? ""),
       })
       .returning();
