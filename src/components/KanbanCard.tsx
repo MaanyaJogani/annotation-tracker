@@ -259,7 +259,7 @@ export default function KanbanCard({
           </p>
           <p className="text-slate-700 font-medium mt-0.5">{formatDateTime(task.startAt)}</p>
         </div>
-        <div>
+        <div className="text-right">
           <p className={`font-bold text-[0.65rem] uppercase tracking-wide ${running ? "text-amber-600" : "text-muted"}`}>
             End
           </p>
