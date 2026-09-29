@@ -190,20 +190,16 @@ export default function Dashboard() {
                 {stats.ledger.count} weekly payouts logged
               </span>
             </div>
-            <div className="mt-3 flex flex-wrap items-baseline gap-x-8 gap-y-2">
-              <div>
-                <p className="text-[0.65rem] font-bold text-violet-200/60 uppercase tracking-wider">
-                  Total Paid USD
-                </p>
-                <p className="text-3xl font-bold">{formatUSD(stats.ledger.totalUsd)}</p>
-              </div>
-              <div className="w-px h-10 bg-white/10 hidden sm:block" />
-              <div>
-                <p className="text-[0.65rem] font-bold text-violet-200/60 uppercase tracking-wider">
-                  Total Paid INR
-                </p>
-                <p className="text-3xl font-bold text-amber-300">{formatINR(stats.ledger.totalInr)}</p>
-              </div>
+            <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span className="text-xs font-bold text-violet-200/70 uppercase tracking-wider">
+                Total Paid USD:
+              </span>
+              <span className="text-3xl font-bold">{formatUSD(stats.ledger.totalUsd)}</span>
+              <span className="w-px h-6 bg-white/15 mx-2 hidden sm:block" />
+              <span className="text-xs font-bold text-violet-200/70 uppercase tracking-wider">
+                Total Paid INR:
+              </span>
+              <span className="text-3xl font-bold text-amber-300">{formatINR(stats.ledger.totalInr)}</span>
             </div>
             <p className="mt-3 text-xs text-violet-200/60 flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-violet-300/70" />
