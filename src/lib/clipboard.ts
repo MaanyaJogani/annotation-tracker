@@ -1,10 +1,11 @@
-/** Copy text to clipboard with a fallback for restricted contexts
- *  (e.g. iframe previews where navigator.clipboard is permission-blocked). */
-export async function copyText(text: string): Promise<boolean> {
-  if (!text) return false;
+/** Copy text to clipboard with fallbacks for restricted contexts
+ *  (e.g. iframe previews where navigator.clipboard is permission-blocked).
+ *  Returns "copied" | "manual" (dialog shown) | "failed". */
+export async function copyText(text: string): Promise<"copied" | "manual" | "failed"> {
+  if (!text) return "failed";
   try {
     await navigator.clipboard.writeText(text);
-    return true;
+    return "copied";
   } catch {
     try {
       const ta = document.createElement("textarea");
@@ -16,9 +17,15 @@ export async function copyText(text: string): Promise<boolean> {
       ta.select();
       const ok = document.execCommand("copy");
       document.body.removeChild(ta);
-      return ok;
+      if (ok) return "copied";
     } catch {
-      return false;
+      /* fall through */
+    }
+    try {
+      window.prompt("Clipboard blocked here — copy manually:", text);
+      return "manual";
+    } catch {
+      return "failed";
     }
   }
 }

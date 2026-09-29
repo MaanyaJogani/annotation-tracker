@@ -45,8 +45,8 @@ function CopyField({ label, value }: { label: string; value: string }) {
         onClick={async (e) => {
           e.stopPropagation();
           if (!value) return;
-          const ok = await copyText(value);
-          if (ok) {
+          const result = await copyText(value);
+          if (result === "copied") {
             setCopied(true);
             setTimeout(() => setCopied(false), 1200);
           }

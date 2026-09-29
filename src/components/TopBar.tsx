@@ -46,8 +46,8 @@ export default function TopBar() {
 
   async function copyEmail() {
     if (!settings?.workerEmail) return;
-    const ok = await copyText(settings.workerEmail);
-    if (ok) {
+    const result = await copyText(settings.workerEmail);
+    if (result === "copied") {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     }
@@ -55,28 +55,48 @@ export default function TopBar() {
 
   return (
     <header className="bg-header text-white">
-      <div className="max-w-[2200px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-14 py-2.5 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 min-w-0">
+      <div className="max-w-[2200px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-14 py-2.5 flex items-center justify-between gap-3 overflow-x-auto">
+        <div className="flex items-center gap-2 shrink-0">
           <span className="chip bg-white/10 text-emerald-200 border border-white/15">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
             Worker:
           </span>
-          <button
-            onClick={copyEmail}
-            title={copied ? "Copied!" : "Copy email"}
-            className="text-sm text-emerald-100/90 font-mono truncate hover:text-white transition-colors"
-          >
-            {settings?.workerEmail || "set email in Settings →"}
-          </button>
-          <svg
-            className="w-3.5 h-3.5 opacity-60 shrink-0"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            viewBox="0 0 24 24"
-          >
-            <path d="M8 8h12M8 12h12M8 16h12M4 4h2v16H4z" />
-          </svg>
+          {settings?.workerEmail ? (
+            <>
+              <span
+                className="text-sm text-emerald-100/90 font-mono truncate max-w-72"
+                title={settings.workerEmail}
+              >
+                {settings.workerEmail}
+              </span>
+              <button
+                onClick={copyEmail}
+                title={copied ? "Copied!" : "Copy email"}
+                className="flex items-center gap-1 shrink-0 text-emerald-200/80 hover:text-white transition-colors"
+              >
+                {copied ? (
+                  <>
+                    <svg className="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                      <path d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span className="text-xs font-semibold">Copied!</span>
+                  </>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <rect x="9" y="9" width="11" height="11" rx="2" />
+                    <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+                  </svg>
+                )}
+              </button>
+            </>
+          ) : (
+            <a
+              href="/settings"
+              className="text-sm text-amber-300 underline underline-offset-2 hover:text-amber-200"
+            >
+              Set email in Settings →
+            </a>
+          )}
         </div>
 
         <div className="flex items-center gap-3">
