@@ -28,7 +28,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full flex flex-col">
         <TopBar />
         <NavTabs />
-        <main className="flex-1 w-full max-w-7xl mx-auto px-4 py-6">
+        <main className="flex-1 w-full max-w-[2200px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-14 py-4 sm:py-6">
           {children}
         </main>
       </body>

@@ -56,7 +56,7 @@ export default function TopBar() {
 
   return (
     <header className="bg-header text-white">
-      <div className="max-w-7xl mx-auto px-4 py-2.5 flex items-center justify-between gap-3">
+      <div className="max-w-[2200px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-14 py-2.5 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 min-w-0">
           <span className="chip bg-white/10 text-emerald-200 border border-white/15">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />

@@ -43,7 +43,7 @@ export default function NavTabs() {
 
   return (
     <nav className="bg-surface border-b border-line">
-      <div className="max-w-7xl mx-auto px-4 flex items-center gap-1 overflow-x-auto">
+      <div className="max-w-[2200px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-14 flex items-center gap-1 overflow-x-auto">
         {tabs.map((t) => {
           const active = pathname === t.href;
           return (

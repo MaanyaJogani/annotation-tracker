@@ -205,7 +205,7 @@ export default function Dashboard() {
       </section>
 
       {/* Stat cards */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
         <div className="card p-4 space-y-2.5">
           <div className="flex items-center justify-between">
             <p className="text-[0.65rem] font-bold text-muted uppercase tracking-wider">
