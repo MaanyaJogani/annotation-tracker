@@ -229,6 +229,18 @@ export default function KanbanCard({
         </div>
       )}
 
+      {isPaid && (
+        <button
+          onClick={() => onSetStatus(task, "Completed")}
+          className="w-full py-2.5 text-sm font-semibold rounded-xl bg-slate-50 text-slate-600 border border-line hover:bg-slate-100 transition-colors flex items-center justify-center gap-1.5"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" />
+          </svg>
+          Return to Completed
+        </button>
+      )}
+
       <div className="rounded-xl border border-line divide-y divide-line">
         <CopyField label="Task ID" value={task.taskUuid} />
         <CopyField label="Stage ID" value={task.stageUuid} />
