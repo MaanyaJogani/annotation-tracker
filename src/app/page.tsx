@@ -405,7 +405,7 @@ export default function Dashboard() {
               )}
 
               {colTasks.length === 0 && (
-                <div className="border-2 border-dashed border-line rounded-xl p-8 text-center">
+                <div className="border-2 border-dashed border-line rounded-xl p-8 text-center min-h-44 flex flex-col items-center justify-center">
                   <p className="text-2xl mb-2 opacity-40">{col.group === "paid" ? "₹" : "○"}</p>
                   <p className="text-xs text-muted font-medium">
                     {col.group === "paid"
