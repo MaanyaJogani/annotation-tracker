@@ -30,22 +30,25 @@ const CopyIcon = ({ copied }: { copied: boolean }) =>
 
 function CopyField({ label, value }: { label: string; value: string }) {
   const [copied, setCopied] = useState(false);
-  if (!value) return null;
   return (
     <div className="flex items-center justify-between gap-2 px-3 py-2">
       <div className="min-w-0">
         <p className="text-[0.65rem] font-bold text-muted uppercase tracking-wider">{label}</p>
-        <p className="font-mono text-xs text-slate-700 truncate mt-0.5">{value}</p>
+        <p className="font-mono text-xs text-slate-700 truncate mt-0.5">
+          {value || <span className="text-muted italic">not set</span>}
+        </p>
       </div>
       <button
         title={copied ? "Copied!" : `Copy ${label.toLowerCase()}`}
+        disabled={!value}
         onClick={(e) => {
           e.stopPropagation();
+          if (!value) return;
           navigator.clipboard.writeText(value).catch(() => {});
           setCopied(true);
           setTimeout(() => setCopied(false), 1200);
         }}
-        className="shrink-0 text-muted hover:text-primary"
+        className="shrink-0 text-muted hover:text-primary disabled:opacity-30 disabled:hover:text-muted"
       >
         <CopyIcon copied={copied} />
       </button>
@@ -171,6 +174,25 @@ export default function KanbanCard({
         </span>
       </div>
 
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-semibold text-muted">Review Status</p>
+        <select
+          value={task.approvalStatus}
+          onChange={(e) => onSetApproval(task, e.target.value)}
+          className={`chip border font-semibold py-1.5 pl-3 pr-2 cursor-pointer ${
+            task.approvalStatus === "accepted"
+              ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+              : task.approvalStatus === "rejected"
+                ? "bg-red-100 text-red-700 border-red-200"
+                : "bg-amber-100 text-amber-800 border-amber-200"
+          }`}
+        >
+          <option value="pending">Pending Review</option>
+          <option value="accepted">Accepted</option>
+          <option value="rejected">Rejected</option>
+        </select>
+      </div>
+
       {group === "in_progress" && (
         <button
           onClick={() => onSetStatus(task, "Completed")}
@@ -184,47 +206,27 @@ export default function KanbanCard({
       )}
 
       {group === "completed" && (
-        <>
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-xs font-semibold text-muted">Review Status</p>
-            <select
-              value={task.approvalStatus}
-              onChange={(e) => onSetApproval(task, e.target.value)}
-              className={`chip border font-semibold py-1.5 pl-3 pr-2 cursor-pointer ${
-                task.approvalStatus === "accepted"
-                  ? "bg-emerald-100 text-emerald-700 border-emerald-200"
-                  : task.approvalStatus === "rejected"
-                    ? "bg-red-100 text-red-700 border-red-200"
-                    : "bg-amber-100 text-amber-800 border-amber-200"
-              }`}
-            >
-              <option value="pending">Pending Review</option>
-              <option value="accepted">Accepted</option>
-              <option value="rejected">Rejected</option>
-            </select>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => onSetStatus(task, "Paid & Closed")}
-              className="flex-1 py-2.5 text-sm font-semibold rounded-xl bg-violet-50 text-violet-700 border border-violet-200 hover:bg-violet-100 transition-colors flex items-center justify-center gap-1.5"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path d="M20.59 13.41 12 22l-9-9V4a1 1 0 0 1 1-1h9l7.59 7.59a2 2 0 0 1 0 2.82z" />
-                <circle cx="7.5" cy="7.5" r="1" fill="currentColor" stroke="none" />
-              </svg>
-              Move to Paid →
-            </button>
-            <button
-              title="Move back to In Progress"
-              onClick={() => onSetStatus(task, "In Progress")}
-              className="btn-ghost p-2.5 text-muted"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" />
-              </svg>
-            </button>
-          </div>
-        </>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => onSetStatus(task, "Paid & Closed")}
+            className="flex-1 py-2.5 text-sm font-semibold rounded-xl bg-violet-50 text-violet-700 border border-violet-200 hover:bg-violet-100 transition-colors flex items-center justify-center gap-1.5"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path d="M20.59 13.41 12 22l-9-9V4a1 1 0 0 1 1-1h9l7.59 7.59a2 2 0 0 1 0 2.82z" />
+              <circle cx="7.5" cy="7.5" r="1" fill="currentColor" stroke="none" />
+            </svg>
+            Move to Paid →
+          </button>
+          <button
+            title="Move back to In Progress"
+            onClick={() => onSetStatus(task, "In Progress")}
+            className="btn-ghost p-2.5 text-muted"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" />
+            </svg>
+          </button>
+        </div>
       )}
 
       <div className="rounded-xl border border-line divide-y divide-line">
@@ -232,16 +234,24 @@ export default function KanbanCard({
         <CopyField label="Stage ID" value={task.stageUuid} />
       </div>
 
-      <div className="rounded-xl bg-slate-50/70 border border-line px-3 py-2 flex items-center justify-between text-xs">
-        <span className="flex items-center gap-1.5 text-emerald-700 font-semibold">
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-            <rect x="3" y="5" width="18" height="16" rx="2" /><path d="M8 3v4M16 3v4M3 11h18" />
-          </svg>
-          START: {formatDateTime(task.startAt)}
-        </span>
-        <span className={`font-semibold ${running ? "text-amber-600" : "text-muted"}`}>
-          END: {running ? <span className="italic">Ongoing</span> : formatDateTime(task.endAt)}
-        </span>
+      <div className="rounded-xl bg-slate-50/70 border border-line px-3 py-2 grid grid-cols-2 gap-2 text-xs">
+        <div>
+          <p className="flex items-center gap-1.5 text-emerald-700 font-bold text-[0.65rem] uppercase tracking-wide">
+            <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <rect x="3" y="5" width="18" height="16" rx="2" /><path d="M8 3v4M16 3v4M3 11h18" />
+            </svg>
+            Start
+          </p>
+          <p className="text-slate-700 font-medium mt-0.5">{formatDateTime(task.startAt)}</p>
+        </div>
+        <div>
+          <p className={`font-bold text-[0.65rem] uppercase tracking-wide ${running ? "text-amber-600" : "text-muted"}`}>
+            End
+          </p>
+          <p className={`font-medium mt-0.5 ${running ? "text-amber-600 italic" : "text-slate-700"}`}>
+            {running ? "Ongoing" : formatDateTime(task.endAt)}
+          </p>
+        </div>
       </div>
 
       <div className="flex items-center justify-between gap-2 text-xs">

@@ -41,14 +41,20 @@ export function formatHoursHint(minutes: number): string {
 
 export function formatDateTime(value: string | null | undefined): string {
   if (!value) return "—";
-  return new Date(value).toLocaleString("en-IN", {
+  const d = new Date(value);
+  const datePart = d.toLocaleDateString("en-GB", {
     day: "2-digit",
     month: "short",
     year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
   });
+  const timePart = d
+    .toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    })
+    .toUpperCase();
+  return `${datePart} ${timePart}`;
 }
 
 export function toDateInputValue(value: string | null | undefined): string {
