@@ -215,9 +215,10 @@ export default function TaskModal({ task, open, onClose, onSaved }: Props) {
                       onClick={() => setForm({ ...form, statusId: s.id })}
                       className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
                         active
-                          ? "bg-primary text-white border-primary"
+                          ? "text-white border-transparent"
                           : "bg-surface text-muted border-line hover:border-primary/50"
                       }`}
+                      style={active ? { backgroundColor: s.color } : undefined}
                     >
                       {s.name}
                     </button>
