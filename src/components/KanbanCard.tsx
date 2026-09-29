@@ -169,11 +169,14 @@ export default function KanbanCard({
     <div className="card p-4 space-y-3">
       <div className="flex items-center justify-between gap-2">
         <h3 className="font-bold text-lg">Task {task.taskNumber}</h3>
-        <span className="chip bg-slate-100 text-slate-600 border border-line">
-          <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+        <span className="chip bg-white text-slate-700 border border-line shadow-sm px-2.5 py-1">
+          <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
             <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" />
           </svg>
-          {formatMinutesChip(task.timeSpentMinutes)}
+          <span className="font-bold">{formatMinutesChip(task.timeSpentMinutes).split(" (")[0]}</span>
+          <span className="text-slate-400 font-medium">
+            ({task.timeSpentMinutes}m)
+          </span>
         </span>
       </div>
 
