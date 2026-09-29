@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db } from "@database/client";
 import { projects, statuses, tasks } from "@database/schema";
 import { bad, ok, serverError } from "@/lib/api";
@@ -99,6 +99,15 @@ export async function DELETE(_request: Request, { params }: Params) {
     const { id } = await params;
     const [row] = await db.delete(tasks).where(eq(tasks.id, id)).returning();
     if (!row) return bad("Task not found", 404);
+
+    // If the board is now empty, restart numbering from Task 1.
+    const [{ count }] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(tasks);
+    if (count === 0) {
+      await db.execute(sql`ALTER TABLE tasks ALTER COLUMN task_number RESTART WITH 1`);
+    }
+
     return ok({ deleted: true });
   } catch (err) {
     return serverError(err);
