@@ -48,6 +48,7 @@ export async function GET() {
 
     const ready = board.filter((t) => t.statusKanbanGroup === "completed").length;
     const paid = board.filter((t) => t.statusKanbanGroup === "paid").length;
+    const inProgress = board.filter((t) => t.statusKanbanGroup === "in_progress").length;
 
     const totalMinutes = all.reduce((acc, t) => acc + t.timeSpentMinutes, 0);
 
@@ -79,6 +80,7 @@ export async function GET() {
 
     return ok({
       totalTasks: all.length,
+      inProgress,
       ready,
       paid,
       revoked,

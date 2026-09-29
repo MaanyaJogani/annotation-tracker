@@ -14,6 +14,7 @@ import { usdRangeText } from "@/lib/payout";
 
 interface Stats {
   totalTasks: number;
+  inProgress: number;
   ready: number;
   paid: number;
   revoked: number;
@@ -156,8 +157,11 @@ export default function Dashboard() {
   }
 
   const rate = stats.rate;
-  const barGreen = stats.totalTasks > 0 ? ((stats.ready + stats.paid) / stats.totalTasks) * 100 : 0;
-  const barRed = stats.totalTasks > 0 ? (stats.revoked / stats.totalTasks) * 100 : 0;
+  const pct = (n: number) => (stats.totalTasks > 0 ? (n / stats.totalTasks) * 100 : 0);
+  const barInProgress = pct(stats.inProgress);
+  const barReady = pct(stats.ready);
+  const barPaid = pct(stats.paid);
+  const barRevoked = pct(stats.revoked);
   const byStatusText =
     stats.byStatusUsdMin === 0 && stats.byStatusUsdMax === 0
       ? formatUSD(0)
@@ -205,92 +209,111 @@ export default function Dashboard() {
       </section>
 
       {/* Stat cards */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
-        <div className="card p-4 space-y-2.5">
-          <div className="flex items-center justify-between">
-            <p className="text-[0.65rem] font-bold text-muted uppercase tracking-wider">
-              Total Tasks
+      <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div className="flex flex-col gap-4">
+          <div className="card p-3.5 space-y-2 flex-1">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-bold text-muted uppercase tracking-wider">
+                Total Tasks
+              </p>
+              <div className="flex items-center gap-1.5">
+                {stats.revoked > 0 && (
+                  <span className="chip bg-red-100 text-red-600 border border-red-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                    {stats.revoked} Revoked
+                  </span>
+                )}
+                <span className="w-6 h-6 rounded-md border border-emerald-200 text-emerald-600 flex items-center justify-center">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                  </svg>
+                </span>
+              </div>
+            </div>
+            <p className="text-2xl font-bold">{stats.totalTasks}</p>
+            <p className="text-xs text-muted">
+              {stats.inProgress > 0 && <span className="font-medium">{stats.inProgress} In Progress · </span>}
+              <span className="text-emerald-600 font-semibold">{stats.ready} ready</span>
+              {" · "}
+              <span className="text-violet-600 font-semibold">{stats.paid} paid</span>
             </p>
-            <span className="text-muted">✎</span>
-          </div>
-          <p className="text-3xl font-bold">{stats.totalTasks}</p>
-          <p className="text-xs text-muted">
-            <span className="text-emerald-600 font-semibold">{stats.ready} ready</span>
-            {" · "}
-            <span className="text-violet-600 font-semibold">{stats.paid} paid</span>
             {stats.revoked > 0 && (
-              <>
-                {" · "}
-                <span className="text-red-500 font-semibold">{stats.revoked} revoked</span>
-              </>
+              <p className="text-xs text-red-500 font-semibold flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                {stats.revoked} revoked
+              </p>
             )}
-          </p>
-          <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden flex">
-            <div className="bg-emerald-500 h-full" style={{ width: `${barGreen}%` }} />
-            <div className="bg-red-400 h-full" style={{ width: `${barRed}%` }} />
+            <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden flex">
+              <div className="bg-amber-400 h-full" style={{ width: `${barInProgress}%` }} />
+              <div className="bg-emerald-500 h-full" style={{ width: `${barReady}%` }} />
+              <div className="bg-violet-500 h-full" style={{ width: `${barPaid}%` }} />
+              <div className="bg-red-400 h-full" style={{ width: `${barRevoked}%` }} />
+            </div>
+          </div>
+
+          <div className="card p-3.5 flex-1 flex flex-col justify-center gap-2">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-bold text-muted uppercase tracking-wider">
+                Approval Rate
+              </p>
+              <span className="w-6 h-6 rounded-md border border-line text-muted flex items-center justify-center text-xs">
+                %
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <p className="text-2xl font-bold">
+                {stats.approvalRate === null ? "0%" : `${stats.approvalRate}%`}
+              </p>
+              <span className="chip bg-slate-100 text-slate-500 border border-line">
+                {stats.reviewedCount === 0 ? "No reviews" : `${stats.reviewedCount} reviewed`}
+              </span>
+            </div>
           </div>
         </div>
 
-        <div className="card p-4 space-y-2.5">
+        <div className="card p-4 flex flex-col">
           <div className="flex items-center justify-between">
-            <p className="text-[0.65rem] font-bold text-muted uppercase tracking-wider">
+            <p className="text-xs font-bold text-muted uppercase tracking-wider">
               Total Time
             </p>
             <span className="text-muted">◷</span>
           </div>
-          <p className="text-3xl font-bold">
+          <p className="text-3xl font-bold mt-2">
             {(stats.totalMinutes / 60).toFixed(1)} <span className="text-xl">hrs</span>
           </p>
           <p className="text-xs text-muted">({stats.totalMinutes} mins)</p>
-          <p className="text-[0.7rem] text-muted pt-1 border-t border-line/70">
-            Across all tasks
-          </p>
+          <p className="text-sm text-muted mt-auto pt-4">Across all tasks</p>
         </div>
 
-        <div className="card p-4 space-y-2.5">
+        <div className="card p-4 flex flex-col">
           <div className="flex items-center justify-between">
-            <p className="text-[0.65rem] font-bold text-muted uppercase tracking-wider">
+            <p className="text-xs font-bold text-muted uppercase tracking-wider">
               USD Payout (Est.)
             </p>
             <span className="text-emerald-600">$</span>
           </div>
-          <p className="text-2xl font-bold text-emerald-700 leading-snug">
+          <p className="text-2xl font-bold text-emerald-700 leading-snug mt-2">
             {formatUSD(stats.usdMin)} –<br /> {formatUSD(stats.usdMax)}
           </p>
-          <p className="text-[0.7rem] text-muted pt-1 border-t border-line/70">
-            Min ${stats.minRateSeen}/hr · Max ${stats.maxRateSeen}/hr
+          <p className="text-sm text-muted mt-auto pt-4">
+            Min (${stats.minRateSeen}/h) · Max (${stats.maxRateSeen}/h)
           </p>
         </div>
 
-        <div className="card p-4 space-y-2.5 !bg-[#0b3d2c] !border-[#0b3d2c] text-white">
+        <div className="card p-4 flex flex-col !bg-[#0b3d2c] !border-[#0b3d2c] text-white">
           <div className="flex items-center justify-between">
-            <p className="text-[0.65rem] font-bold text-emerald-200/80 uppercase tracking-wider">
+            <p className="text-xs font-bold text-emerald-200/80 uppercase tracking-wider">
               INR Payout (Est.)
             </p>
             <span className="text-emerald-300">↗</span>
           </div>
-          <p className="text-2xl font-bold text-emerald-50 leading-snug">
+          <p className="text-2xl font-bold text-emerald-50 leading-snug mt-2">
             {rate > 0 ? formatINR(stats.usdMin * rate) : "—"} –<br />{" "}
             {rate > 0 ? formatINR(stats.usdMax * rate) : ""}
           </p>
-          <p className="text-[0.7rem] text-emerald-200/70 pt-1 border-t border-white/15">
+          <p className="text-sm text-emerald-200/80 mt-auto pt-4">
             {rate > 0 ? `Converted at ${formatRateINR(rate)}/USD` : "Rate unavailable"}
           </p>
-        </div>
-
-        <div className="card p-4 space-y-2.5 sm:col-span-2 xl:col-span-1">
-          <div className="flex items-center justify-between">
-            <p className="text-[0.65rem] font-bold text-muted uppercase tracking-wider">
-              Approval Rate
-            </p>
-            <span className="text-muted">%</span>
-          </div>
-          <p className="text-3xl font-bold">
-            {stats.approvalRate === null ? "0%" : `${stats.approvalRate}%`}
-          </p>
-          <span className="chip bg-slate-100 text-slate-500 border border-line w-fit">
-            {stats.reviewedCount === 0 ? "No reviews" : `${stats.reviewedCount} reviewed`}
-          </span>
         </div>
       </section>
 
