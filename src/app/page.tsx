@@ -127,6 +127,30 @@ export default function Dashboard() {
     load();
   }
 
+  async function updateNotes(t: Task, notes: string) {
+    await fetch(`/api/tasks/${t.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ notes }),
+    });
+    load();
+  }
+
+  async function updateComment(t: Task, reviewerComment: string) {
+    await fetch(`/api/tasks/${t.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reviewerComment }),
+    });
+    load();
+  }
+
+  async function deleteTask(t: Task) {
+    if (!confirm(`Delete Task ${t.taskNumber}? This cannot be undone.`)) return;
+    await fetch(`/api/tasks/${t.id}`, { method: "DELETE" });
+    load();
+  }
+
   if (loading || !stats) {
     return <div className="card p-16 text-center text-muted">Loading board…</div>;
   }
@@ -334,12 +358,15 @@ export default function Dashboard() {
                   key={t.id}
                   task={t}
                   rate={rate}
-                  onOpen={(x) => {
+                  onEdit={(x) => {
                     setEditing(x);
                     setModalOpen(true);
                   }}
+                  onDelete={deleteTask}
                   onSetStatus={setStatus}
                   onSetApproval={setApproval}
+                  onUpdateNotes={updateNotes}
+                  onUpdateComment={updateComment}
                 />
               ))}
 
