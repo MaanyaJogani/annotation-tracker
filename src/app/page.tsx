@@ -323,43 +323,122 @@ export default function Dashboard() {
       </section>
 
       {/* Filters */}
-      <section className="card p-3 flex flex-wrap items-center gap-2">
-        <input
-          className="field flex-1 min-w-52"
-          placeholder="Search ID, stage, notes…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-        <select className="field w-36" value={stageFilter} onChange={(e) => setStageFilter(e.target.value)}>
-          <option value="all">All Stages</option>
-          <option value="in_progress">In Progress</option>
-          <option value="completed">Completed</option>
-          <option value="paid">Paid</option>
-        </select>
-        <select className="field w-40" value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)}>
-          <option value="all">All Projects</option>
-          {projects.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-        <select className="field w-40" value={reviewFilter} onChange={(e) => setReviewFilter(e.target.value)}>
-          <option value="all">All Review States</option>
-          <option value="pending">Pending Review</option>
-          <option value="accepted">Accepted</option>
-          <option value="rejected">Rejected</option>
-        </select>
+      <section className="card p-3 flex flex-nowrap items-center gap-2.5 overflow-x-auto">
+        <div className="w-[336px] shrink-0">
+          <input
+            className="field field-pill"
+            placeholder="Search ID, stage, notes…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+
+        <div className="flex items-center gap-2.5 ml-auto shrink-0">
+        <div className="relative w-40">
+          <svg
+            className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted pointer-events-none"
+            fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
+          >
+            <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" />
+          </svg>
+          <select
+            className="field field-pill field-icon-both appearance-none cursor-pointer"
+            value={stageFilter}
+            onChange={(e) => setStageFilter(e.target.value)}
+          >
+            <option value="all">All Stages</option>
+            <option value="in_progress">In Progress</option>
+            <option value="completed">Completed</option>
+            <option value="paid">Paid</option>
+          </select>
+          <svg
+            className="absolute right-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted pointer-events-none"
+            fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
+          >
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </div>
+
+        <div className="relative w-40">
+          <svg
+            className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted pointer-events-none"
+            fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
+          >
+            <path d="M20.59 13.41 12 22l-9-9V4a1 1 0 0 1 1-1h9l7.59 7.59a2 2 0 0 1 0 2.82z" />
+            <circle cx="7.5" cy="7.5" r="1" fill="currentColor" stroke="none" />
+          </svg>
+          <select
+            className="field field-pill field-icon-both appearance-none cursor-pointer"
+            value={projectFilter}
+            onChange={(e) => setProjectFilter(e.target.value)}
+          >
+            <option value="all">All Projects</option>
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+          <svg
+            className="absolute right-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted pointer-events-none"
+            fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
+          >
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </div>
+
+        <div className="relative w-44">
+          <svg
+            className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted pointer-events-none"
+            fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
+          >
+            <circle cx="12" cy="12" r="9" /><path d="m8.5 12.5 2.5 2.5 5-5" />
+          </svg>
+          <select
+            className="field field-pill field-icon-both appearance-none cursor-pointer"
+            value={reviewFilter}
+            onChange={(e) => setReviewFilter(e.target.value)}
+          >
+            <option value="all">All Review States</option>
+            <option value="pending">Pending Review</option>
+            <option value="accepted">Accepted</option>
+            <option value="rejected">Rejected</option>
+          </select>
+          <svg
+            className="absolute right-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted pointer-events-none"
+            fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
+          >
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </div>
+
         <button
           onClick={() => setCommentsOnly((v) => !v)}
-          className={`chip border px-3 py-1.5 ${
+          className={`flex items-center gap-2 rounded-full border px-3.5 py-2 text-sm font-medium transition-colors ${
             commentsOnly
               ? "bg-emerald-600 text-white border-emerald-600"
-              : "bg-surface text-muted border-line hover:border-primary/50"
+              : "bg-surface border-line hover:border-emerald-300"
           }`}
         >
-          💬 Comments {commentsCount} of {tasks.filter((t) => t.statusShowOnBoard !== false).length}
+          <svg
+            className={`w-4 h-4 ${commentsOnly ? "text-white" : "text-emerald-600"}`}
+            fill="currentColor" viewBox="0 0 24 24"
+          >
+            <path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5c-1.4 0-2.7-.3-3.9-.9L3 21l1.9-5.6A8.5 8.5 0 1 1 21 11.5z" />
+          </svg>
+          <span>Comments</span>
+          <span
+            className={`chip px-1.5 py-0 text-[0.7rem] ${
+              commentsOnly ? "bg-white/20 text-white" : "bg-emerald-100 text-emerald-700"
+            }`}
+          >
+            {commentsCount}
+          </span>
         </button>
+        <span className="text-sm text-muted">
+          {commentsCount} of {tasks.filter((t) => t.statusShowOnBoard !== false).length}
+        </span>
+        </div>
       </section>
 
       {/* Kanban */}

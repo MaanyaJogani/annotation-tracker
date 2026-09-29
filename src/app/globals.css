@@ -88,6 +88,15 @@ body {
   box-shadow: 0 0 0 3px rgb(16 185 129 / 0.15);
 }
 
+/* Pill-shaped field variants used in the filter bar */
+.field-pill {
+  border-radius: 999px;
+}
+.field-icon-both {
+  padding-left: 2.75rem;
+  padding-right: 2.25rem;
+}
+
 .label {
   font-size: 0.8rem;
   font-weight: 600;
