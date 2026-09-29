@@ -7,13 +7,13 @@ import {
   fromDateInputValue,
   toDateInputValue,
 } from "@/lib/format";
-import { projectedUsd, usdRangeText, inrRangeText } from "@/lib/payout";
+import { usdRangeText, inrRangeText } from "@/lib/payout";
 
-/** Live elapsed minutes incl. the running session */
-function liveMinutes(t: Task, now: number): number {
-  if (!t.timerStartedAt) return t.timeSpentMinutes;
+/** Live elapsed seconds incl. the running session */
+function liveElapsedSeconds(t: Task, now: number): number {
+  if (!t.timerStartedAt) return t.timeSpentMinutes * 60;
   return (
-    t.timeSpentMinutes +
+    t.timeSpentMinutes * 60 +
     Math.max(0, Math.floor((now - new Date(t.timerStartedAt).getTime()) / 1000))
   );
 }
@@ -66,12 +66,14 @@ export default function FocusPage() {
 
   const task = tasks.find((t) => t.id === selectedId) ?? null;
   const running = task?.timerStartedAt != null;
-  const elapsedSeconds = task ? liveMinutes(task, now) * 60 : 0;
+  const elapsedSeconds = task ? liveElapsedSeconds(task, now) : 0;
   const banked = task?.timeSpentMinutes ?? 0;
   const liveElapsedMin = Math.floor(elapsedSeconds / 60);
 
+  // Earnings accrue continuously (per second) while the timer runs
+  const liveHours = elapsedSeconds / 3600;
   const usd = task
-    ? projectedUsd(liveElapsedMin, task.minRate, task.maxRate)
+    ? { min: liveHours * task.minRate, max: liveHours * task.maxRate }
     : { min: 0, max: 0 };
 
   const patch = useCallback(
