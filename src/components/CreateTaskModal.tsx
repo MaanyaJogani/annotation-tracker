@@ -296,7 +296,7 @@ export default function CreateTaskModal({ open, onClose, onCreated }: Props) {
                     type="number"
                     min="0"
                     step="0.5"
-                    className="field pl-7"
+                    className="field field-currency"
                     value={form.minRate}
                     onChange={(e) => setForm({ ...form, minRate: e.target.value })}
                   />
@@ -310,7 +310,7 @@ export default function CreateTaskModal({ open, onClose, onCreated }: Props) {
                     type="number"
                     min="0"
                     step="0.5"
-                    className="field pl-7"
+                    className="field field-currency"
                     value={form.maxRate}
                     onChange={(e) => setForm({ ...form, maxRate: e.target.value })}
                   />

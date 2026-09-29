@@ -96,6 +96,9 @@ body {
   padding-left: 2.75rem;
   padding-right: 2.25rem;
 }
+.field-currency {
+  padding-left: 1.75rem;
+}
 
 .label {
   font-size: 0.8rem;
