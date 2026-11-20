@@ -1,6 +1,6 @@
 import { desc, eq, sql } from "drizzle-orm";
 import { db } from "@database/client";
-import { projects, statuses, tasks } from "@database/schema";
+import { projects, statuses, tasks, weeklyPayouts } from "@database/schema";
 import { bad, ok, serverError } from "@/lib/api";
 import type { ApprovalStatus } from "@/lib/types";
 
@@ -9,6 +9,7 @@ export async function GET() {
     const rows = await db
       .select({
         task: tasks,
+        weekNumber: weeklyPayouts.weekNumber,
         projectName: projects.name,
         statusName: statuses.name,
         statusColor: statuses.color,
@@ -16,13 +17,15 @@ export async function GET() {
         statusShowOnBoard: statuses.showOnBoard,
       })
       .from(tasks)
+      .leftJoin(weeklyPayouts, eq(tasks.payoutId, weeklyPayouts.id))
       .leftJoin(projects, eq(tasks.projectId, projects.id))
       .leftJoin(statuses, eq(tasks.statusId, statuses.id))
       .orderBy(desc(tasks.taskNumber));
 
     return ok(
-      rows.map(({ task: t, projectName, statusName, statusColor, statusKanbanGroup, statusShowOnBoard }) => ({
+      rows.map(({ task: t, weekNumber, projectName, statusName, statusColor, statusKanbanGroup, statusShowOnBoard }) => ({
         ...t,
+        weekNumber,
         minRate: Number(t.minRate),
         maxRate: Number(t.maxRate),
         projectName,
@@ -40,6 +43,12 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
+    for (const key of ["reviewWorkerEmail", "reviewJustification", "taskerFeedback"]) {
+      if (body[key] !== undefined && typeof body[key] !== "string") return bad(`Invalid ${key}`);
+    }
+    if (body.taskerDecision !== undefined && body.taskerDecision !== null && !["pass", "fail"].includes(body.taskerDecision)) return bad("Invalid tasker decision");
+    if (body.name !== undefined && (typeof body.name !== "string" || body.name.trim().length > 200)) return bad("Task name must be text up to 200 characters");
+    if (body.taskType !== undefined && !["annotation", "review"].includes(body.taskType)) return bad("Invalid task type");
     const projectId = String(body.projectId ?? "");
     if (!projectId) return bad("Project is required");
 
@@ -81,6 +90,12 @@ export async function POST(request: Request) {
       .insert(tasks)
       .values({
         ...(taskNumber !== undefined ? { taskNumber } : {}),
+        reviewWorkerEmail: body.reviewWorkerEmail ?? "",
+        reviewJustification: body.reviewJustification ?? "",
+        taskerFeedback: body.taskerFeedback ?? "",
+        taskerDecision: body.taskerDecision ?? null,
+        name: body.name?.trim() ?? "",
+        taskType: body.taskType ?? "annotation",
         projectId,
         taskUuid: String(body.taskUuid ?? ""),
         stageUuid: String(body.stageUuid ?? ""),
@@ -94,8 +109,9 @@ export async function POST(request: Request) {
           body.minRate !== undefined && Number(body.minRate) >= 0
             ? Number(body.minRate).toFixed(2)
             : project.minRate,
-        maxRate:
-          body.maxRate !== undefined && Number(body.maxRate) >= 0
+        maxRate: body.taskType === "review"
+          ? (body.minRate !== undefined && Number(body.minRate) >= 0 ? Number(body.minRate).toFixed(2) : project.minRate)
+          : body.maxRate !== undefined && Number(body.maxRate) >= 0
             ? Number(body.maxRate).toFixed(2)
             : project.maxRate,
         notes: String(body.notes ?? ""),

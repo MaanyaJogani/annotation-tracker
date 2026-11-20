@@ -1,6 +1,6 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@database/client";
-import { projects, statuses, tasks } from "@database/schema";
+import { projects, statuses, tasks, weeklyPayouts } from "@database/schema";
 import { bad, ok, serverError } from "@/lib/api";
 import type { ApprovalStatus } from "@/lib/types";
 
@@ -40,7 +40,27 @@ export async function PATCH(request: Request, { params }: Params) {
   try {
     const { id } = await params;
     const body = await request.json();
+    for (const key of ["reviewWorkerEmail", "reviewJustification", "taskerFeedback"]) {
+      if (body[key] !== undefined && typeof body[key] !== "string") return bad(`Invalid ${key}`);
+    }
+    if (body.taskerDecision !== undefined && body.taskerDecision !== null && !["pass", "fail"].includes(body.taskerDecision)) return bad("Invalid tasker decision");
+    if (body.name !== undefined && (typeof body.name !== "string" || body.name.trim().length > 200)) return bad("Task name must be text up to 200 characters");
+    if (body.taskType !== undefined && !["annotation", "review"].includes(body.taskType)) return bad("Invalid task type");
     const updates: Record<string, unknown> = { updatedAt: new Date() };
+
+    for (const key of ["reviewWorkerEmail", "reviewJustification", "taskerFeedback", "taskerDecision"]) {
+      if (body[key] !== undefined) updates[key] = body[key];
+    }
+    if (body.payoutId !== undefined) {
+      if (body.payoutId !== null) {
+        if (typeof body.payoutId !== "string" || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(body.payoutId)) return bad("Invalid payout week");
+        const [week] = await db.select({ id: weeklyPayouts.id }).from(weeklyPayouts).where(eq(weeklyPayouts.id, body.payoutId));
+        if (!week) return bad("Payout week not found", 404);
+      }
+      updates.payoutId = body.payoutId;
+    }
+    if (body.name !== undefined) updates.name = body.name.trim();
+    if (body.taskType !== undefined) updates.taskType = body.taskType;
 
     if (body.taskNumber !== undefined) {
       const v = Math.round(Number(body.taskNumber));
@@ -91,6 +111,19 @@ export async function PATCH(request: Request, { params }: Params) {
       updates.maxRate = v.toFixed(2);
     }
     if (body.notes !== undefined) updates.notes = String(body.notes);
+
+    const [existing] = await db.select().from(tasks).where(eq(tasks.id, id));
+    if (!existing) return bad("Task not found", 404);
+    if (body.payoutId && body.payoutId !== existing.payoutId) {
+      const [paid] = await db.select({ id: statuses.id }).from(statuses).where(and(
+        eq(statuses.name, "Paid & Closed"), eq(statuses.kanbanGroup, "paid"), eq(statuses.isActive, true)
+      ));
+      if (!paid) return bad("Activate the Paid & Closed status before assigning a payout week.", 409);
+      updates.statusId = paid.id;
+    }
+    if ((updates.taskType ?? existing.taskType) === "review") {
+      updates.maxRate = updates.minRate ?? existing.minRate;
+    }
 
     const [row] = await db
       .update(tasks)
