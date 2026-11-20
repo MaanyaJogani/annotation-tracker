@@ -24,14 +24,25 @@ export interface Status {
 }
 
 export interface Task {
+  weekNumber?: number | null;
+  payoutId?: string | null;
   id: string;
   taskNumber: number;
+  name: string;
+  typeNumber: number;
   projectId: string;
   projectName?: string;
   taskUuid: string;
   stageUuid: string;
   timeSpentMinutes: number;
   timerStartedAt: string | null;
+  timerRemainderMs?: number;
+  activeFocus?: boolean;
+  taskType?: "annotation" | "review";
+  reviewJustification?: string;
+  taskerFeedback?: string;
+  reviewWorkerEmail?: string;
+  taskerDecision?: "pass" | "fail" | null;
   statusId: string | null;
   statusName?: string;
   statusColor?: string;

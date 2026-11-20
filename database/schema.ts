@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   boolean,
   date,
@@ -8,6 +9,8 @@ import {
   text,
   timestamp,
   uuid,
+  uniqueIndex,
+  check,
 } from "drizzle-orm/pg-core";
 
 export const approvalStatusEnum = pgEnum("approval_status", [
@@ -54,6 +57,9 @@ export const statuses = pgTable("statuses", {
 
 export const tasks = pgTable("tasks", {
   id: uuid("id").defaultRandom().primaryKey(),
+  name: text("name").notNull().default(""),
+  payoutId: uuid("payout_id").references(() => weeklyPayouts.id, { onDelete: "set null" }),
+  typeNumber: integer("type_number").notNull().default(0),
   taskNumber: integer("task_number").notNull().generatedByDefaultAsIdentity(),
   projectId: uuid("project_id")
     .notNull()
@@ -61,6 +67,13 @@ export const tasks = pgTable("tasks", {
   taskUuid: text("task_uuid").notNull().default(""),
   stageUuid: text("stage_uuid").notNull().default(""),
   timeSpentMinutes: integer("time_spent_minutes").notNull().default(0),
+  timerRemainderMs: integer("timer_remainder_ms").notNull().default(0),
+  activeFocus: boolean("active_focus").notNull().default(false),
+  taskType: text("task_type").notNull().default("annotation"),
+  reviewJustification: text("review_justification").notNull().default(""),
+  taskerFeedback: text("tasker_feedback").notNull().default(""),
+  reviewWorkerEmail: text("review_worker_email").notNull().default(""),
+  taskerDecision: text("tasker_decision"),
   timerStartedAt: timestamp("timer_started_at", { withTimezone: true }),
   statusId: uuid("status_id").references(() => statuses.id, {
     onDelete: "set null",
@@ -84,10 +97,16 @@ export const tasks = pgTable("tasks", {
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
-});
+}, (table) => [
+  uniqueIndex("tasks_one_active_focus").on(table.activeFocus).where(sql`${table.activeFocus} = true`),
+  check("tasks_timer_remainder_valid", sql`${table.timerRemainderMs} >= 0 AND ${table.timerRemainderMs} < 60000`),
+  check("tasks_task_type_valid", sql`${table.taskType} IN ('annotation', 'review')`),
+  check("tasks_tasker_decision_valid", sql`${table.taskerDecision} IS NULL OR ${table.taskerDecision} IN ('pass', 'fail')`),
+]);
 
 export const weeklyPayouts = pgTable("weekly_payouts", {
   id: uuid("id").defaultRandom().primaryKey(),
+  paidOn: date("paid_on"),
   weekNumber: integer("week_number").notNull().generatedAlwaysAsIdentity(),
   startDate: date("start_date"),
   endDate: date("end_date"),
