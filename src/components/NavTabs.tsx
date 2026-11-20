@@ -43,7 +43,7 @@ export default function NavTabs() {
     : null;
 
   return (
-    <nav className="bg-surface border-b border-line">
+    <nav className="reference-nav bg-surface border-b border-line py-1">
       <div className="max-w-[2200px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-14 flex items-center gap-1 overflow-x-auto">
         {tabs.map((t) => {
           const active = pathname === t.href;
@@ -51,6 +51,7 @@ export default function NavTabs() {
             <Link
               key={t.href}
               href={t.href}
+              aria-current={active ? "page" : undefined}
               className={`px-3.5 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${
                 active
                   ? "border-primary text-primary-ink"
