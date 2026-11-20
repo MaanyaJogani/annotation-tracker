@@ -1,0 +1,29 @@
+#!/bin/bash
+set -eu
+url=http://127.0.0.1:3100/
+ready() {
+  local page
+  page=$(curl --noproxy '*' -fsS --max-time 3 "$url" 2>/dev/null) &&
+    [[ "$page" == *'<title>Annotation Task &amp; Payout Tracker</title>'* ]]
+}
+fail() {
+  echo "$1" >&2
+  if command -v zenity >/dev/null; then zenity --error --title="Annotation Tracker" --text="$1"; fi
+  exit 1
+}
+if ! ready; then
+  systemctl --user start annotation-tracker.service || fail "Could not start Annotation Tracker. Check the annotation-tracker user service."
+  for ((attempt=0; attempt<90; attempt++)); do
+    if ready; then break; fi
+    systemctl --user is-active --quiet annotation-tracker.service || fail "The tracker stopped during startup. Check the annotation-tracker user service."
+    sleep 1
+  done
+  ready || fail "The tracker did not respond on local port 3100."
+fi
+root=$(cd -- "$(dirname -- "$0")/../.." && pwd)
+for browser in brave-browser google-chrome chromium chromium-browser; do
+  if command -v "$browser" >/dev/null; then
+    exec "$browser" --app="$url" --class=AnnotationTracker --user-data-dir="$root/.local/desktop/browser"
+  fi
+done
+exec xdg-open "$url"
