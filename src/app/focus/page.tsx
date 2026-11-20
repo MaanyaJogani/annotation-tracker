@@ -1,477 +1,237 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import type { Project, Status, Task } from "@/lib/types";
-import {
-  formatRateINR,
-  fromDateInputValue,
-  toDateInputValue,
-} from "@/lib/format";
-import { usdRangeText, inrRangeText } from "@/lib/payout";
+import { ReviewFields, ReviewDecision } from "@/components/ReviewFields";
+import { CopyButton } from "@/components/CopyField";
+import Link from "next/link";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { Project, Task } from "@/lib/types";
+import { toDateInputValue, formatRateINR } from "@/lib/format";
+import { inrRangeText, usdRangeText } from "@/lib/payout";
+import { elapsedMilliseconds } from "@/lib/focus-timer";
 
-/** Live elapsed seconds incl. the running session */
-function liveElapsedSeconds(t: Task, now: number): number {
-  if (!t.timerStartedAt) return t.timeSpentMinutes * 60;
-  return (
-    t.timeSpentMinutes * 60 +
-    Math.max(0, Math.floor((now - new Date(t.timerStartedAt).getTime()) / 1000))
-  );
+type Draft = {
+  name: string; projectId: string; taskUuid: string; stageUuid: string;
+  notes: string; minRate: string; maxRate: string; startAt: string;
+  taskType: "annotation" | "review"; reviewJustification: string; taskerFeedback: string; reviewWorkerEmail: string; taskerDecision: string;
+};
+// Keep only unsaved fields while moving between pages in this tab.
+const pendingDrafts = new Map<string, Partial<Draft>>();
+const makeDraft = (task: Task): Draft => ({
+  name: task.name, projectId: task.projectId, taskUuid: task.taskUuid,
+  stageUuid: task.stageUuid, notes: task.notes, minRate: String(task.minRate), maxRate: String(task.maxRate),
+  startAt: toDateInputValue(task.startAt), taskType: task.taskType ?? "annotation",
+  reviewJustification: task.reviewJustification ?? "", taskerFeedback: task.taskerFeedback ?? "",
+  reviewWorkerEmail: task.reviewWorkerEmail ?? "", taskerDecision: task.taskerDecision ?? "",
+});
+function clock(seconds: number) {
+  return [Math.floor(seconds / 3600), Math.floor(seconds / 60) % 60, seconds % 60].map((value) => String(value).padStart(2, "0")).join(":");
 }
-
-function hhmmss(totalSeconds: number): string {
-  const h = Math.floor(totalSeconds / 3600);
-  const m = Math.floor((totalSeconds % 3600) / 60);
-  const s = totalSeconds % 60;
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${pad(h)}:${pad(m)}:${pad(s)}`;
+async function readJson<T>(url: string, options?: RequestInit): Promise<T> {
+  const response = await fetch(url, options);
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error ?? "Unable to save. Please try again.");
+  return data;
 }
 
 export default function FocusPage() {
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [task, setTask] = useState<Task | null>(null);
+  const [draft, setDraft] = useState<Draft | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [statuses, setStatuses] = useState<Status[]>([]);
   const [rate, setRate] = useState(0);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const [now, setNow] = useState(() => Date.now());
   const [customMinutes, setCustomMinutes] = useState("");
-  const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [unsaved, setUnsaved] = useState(false);
+  const taskId = useRef<string | null>(null);
+  const requestBusy = useRef(false);
+  const dirty = useRef(false);
 
   const load = useCallback(async () => {
-    const [t, p, s, r] = await Promise.all([
-      fetch("/api/tasks").then((res) => res.json()),
-      fetch("/api/projects").then((res) => res.json()),
-      fetch("/api/statuses").then((res) => res.json()),
-      fetch("/api/rate").then((res) => res.json()),
-    ]);
-    setTasks(t);
-    setProjects(p);
-    setStatuses(s);
-    setRate(r.rate ?? 0);
-    setSelectedId((prev) => {
-      if (prev && t.some((x: Task) => x.id === prev)) return prev;
-      const running = t.find((x: Task) => x.timerStartedAt);
-      const inProgress = t.find(
-        (x: Task) => x.statusKanbanGroup === "in_progress" && x.statusShowOnBoard
-      );
-      return (running ?? inProgress ?? t[0])?.id ?? null;
-    });
+    try {
+      const [all, projectRows, exchange] = await Promise.all([
+        readJson<Task[]>("/api/tasks"), readJson<Project[]>("/api/projects"), readJson<{rate: number | null}>("/api/rate"),
+      ]);
+      const active = all.find((item) => item.activeFocus) ?? null;
+      setTask(active); setProjects(projectRows); setRate(exchange.rate ?? 0); setNow(Date.now());
+      if (taskId.current !== (active?.id ?? null) || !dirty.current) {
+        const changes = active ? pendingDrafts.get(active.id) : undefined;
+        setDraft(active ? { ...makeDraft(active), ...changes } : null);
+        dirty.current = Boolean(changes); setUnsaved(Boolean(changes));
+      }
+      taskId.current = active?.id ?? null;
+    } catch (err) { setError((err as Error).message); }
+    finally { setLoading(false); }
   }, []);
 
   useEffect(() => {
-    load();
-    const tick = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(tick);
+    const initialLoad = setTimeout(() => { void load(); }, 0);
+    const tick = setInterval(() => setNow(Date.now()), 250);
+    const changed = () => { if (!requestBusy.current) void load(); };
+    window.addEventListener("tasks-changed", changed);
+    window.addEventListener("focus", changed);
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      if (dirty.current) { event.preventDefault(); event.returnValue = ""; }
+    };
+    window.addEventListener("beforeunload", beforeUnload);
+    return () => {
+      clearTimeout(initialLoad); clearInterval(tick); window.removeEventListener("tasks-changed", changed);
+      window.removeEventListener("focus", changed); window.removeEventListener("beforeunload", beforeUnload);
+    };
   }, [load]);
 
-  const task = tasks.find((t) => t.id === selectedId) ?? null;
-  const running = task?.timerStartedAt != null;
-  const elapsedSeconds = task ? liveElapsedSeconds(task, now) : 0;
-  const banked = task?.timeSpentMinutes ?? 0;
-  const liveElapsedMin = Math.floor(elapsedSeconds / 60);
+  const running = Boolean(task?.timerStartedAt);
+  const milliseconds = task ? elapsedMilliseconds(task, now) : 0;
+  // Clock and earnings share one whole-second snapshot so they advance together.
+  const elapsedSeconds = Math.floor(milliseconds / 1000);
+  const minutes = Math.floor(elapsedSeconds / 60);
+  const elapsedHours = elapsedSeconds / 3600;
+  const minRate = Number(draft?.minRate ?? 0), maxRate = Number(draft?.taskType === "review" ? draft.minRate : draft?.maxRate ?? 0);
+  const usdMin = elapsedHours * (Number.isFinite(minRate) ? minRate : 0);
+  const usdMax = elapsedHours * (Number.isFinite(maxRate) ? maxRate : 0);
+  const form: Draft = draft ?? { name: "", projectId: projects[0]?.id ?? "", taskUuid: "", stageUuid: "", notes: "", minRate: "0", maxRate: "0", startAt: "", taskType: "annotation", reviewJustification: "", taskerFeedback: "", reviewWorkerEmail: "", taskerDecision: "" };
+  const review = form.taskType === "review";
+  const validCustom = /^\d+$/.test(customMinutes) && Number(customMinutes) > 0 && Number(customMinutes) <= 1000000;
 
-  // Earnings accrue continuously (per second) while the timer runs
-  const liveHours = elapsedSeconds / 3600;
-  const usd = task
-    ? { min: liveHours * task.minRate, max: liveHours * task.maxRate }
-    : { min: 0, max: 0 };
-
-  const patch = useCallback(
-    async (payload: Record<string, unknown>) => {
-      if (!task) return;
-      const res = await fetch(`/api/tasks/${task.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+  function edit<K extends keyof Draft>(key: K, value: Draft[K]) {
+    if (!task) return;
+    pendingDrafts.set(task.id, { ...pendingDrafts.get(task.id), [key]: value });
+    dirty.current = true; setUnsaved(true); setNotice(""); setDraft((previous) => previous ? { ...previous, [key]: value } : null);
+  }
+  function fields() {
+    if (!draft) return {};
+    if (!form.minRate.trim() || (!review && !form.maxRate.trim())) throw new Error("Both hourly rates are required.");
+    const changes = { ...pendingDrafts.get(task!.id) };
+    return { ...changes, taskerDecision: changes.taskerDecision === "" ? null : changes.taskerDecision };
+  }
+  async function act(action: "start" | "resume" | "pause" | "save" | "complete" | "adjust" | "reset", sign = 1) {
+    if (!task || requestBusy.current) return;
+    if (action === "reset" && !window.confirm("Reset this task's timer to 00:00:00? This clears all saved elapsed time and pauses the timer. Task details and the original start date stay unchanged. This cannot be undone.")) return;
+    requestBusy.current = true; setBusy(true); setError(""); setNotice("");
+    try {
+      const body = action === "adjust" ? { delta: sign * Number(customMinutes) }
+        : { action, ...(["save", "complete"].includes(action) ? { fields: fields() } : {}) };
+      const row = await readJson<Task>(`/api/tasks/${task.id}/${action === "adjust" ? "adjust-minutes" : "timer"}`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
       });
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        setError(j.error ?? "Failed to save");
-        return;
+      setNow(Date.now());
+      if (action === "save" || action === "complete") pendingDrafts.delete(task.id);
+      if (action === "complete") {
+        setTask(null); setDraft(null); taskId.current = null; dirty.current = false; setUnsaved(false);
+        setNotice(review ? "Review completed. End time and progress saved." : "Task completed and sent to review. End time and progress saved.");
+      } else {
+        setTask({ ...task, ...row });
+        if (action === "save") { setDraft(makeDraft(row)); dirty.current = false; setUnsaved(false); }
+        else setDraft((previous) => previous ? { ...previous, startAt: toDateInputValue(row.startAt) } : previous);
+        if (action === "adjust") setCustomMinutes("");
+        setNotice(action === "save" ? "Progress saved. You can pause and close the app, then resume later."
+          : action === "pause" ? "Timer paused. Elapsed time is saved; save progress to also save edited fields."
+          : action === "reset" ? "Timer reset to 00:00:00 and paused. Reset saved; task details and start date kept."
+          : action === "adjust" ? "Time adjustment saved." : "Timer running. Start time recorded.");
       }
-      setError("");
-      load();
-    },
-    [task, load]
-  );
-
-  async function timer(action: "start" | "pause" | "resume" | "stop") {
-    if (!task) return;
-    setBusy(true);
-    const res = await fetch(`/api/tasks/${task.id}/timer`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action }),
-    });
-    setBusy(false);
-    if (!res.ok) {
-      const j = await res.json().catch(() => ({}));
-      setError(j.error ?? "Timer action failed");
-      return;
-    }
-    setError("");
-    setNow(Date.now());
-    load();
+      window.dispatchEvent(new Event("tasks-changed"));
+    } catch (err) { setError((err as Error).message); }
+    finally { requestBusy.current = false; setBusy(false); }
   }
-
-  async function adjust(delta: number) {
-    if (!task) return;
-    await fetch(`/api/tasks/${task.id}/adjust-minutes`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ delta }),
-    });
-    load();
-  }
-
-  async function customAdjust(sign: 1 | -1) {
-    const v = Math.round(Number(customMinutes));
-    if (Number.isNaN(v) || v <= 0) return;
-    await adjust(sign * v);
-    setCustomMinutes("");
-  }
-
-  async function resetTimer() {
-    if (!task || banked === 0) return;
-    if (!confirm(`Reset logged time to 0 for Task ${task.taskNumber}?`)) return;
-    await patch({ timeSpentMinutes: 0 });
-  }
-
-  async function completeAndReview() {
-    if (!task) return;
-    if (running) await timer("stop");
-    const completed = statuses.find((s) => s.name === "Completed");
-    if (!completed) return;
-    await patch({ statusId: completed.id, approvalStatus: "pending" });
-  }
-
-  if (!task) {
-    return (
-      <div className="card p-16 text-center text-muted">
-        No tasks yet — create one with <strong>+ Log Task</strong> in the top
-        bar, then come back here to work on it.
-      </div>
-    );
-  }
-
-  const selectable = tasks.filter(
-    (t) => t.statusShowOnBoard !== false
-  );
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-2.5">
-          <span className="chip bg-emerald-100 text-emerald-700 border border-emerald-200">
-            Task {task.taskNumber}
-          </span>
-          <h1 className="text-xl font-bold">Active Task Workbench</h1>
+      <section className="focus-banner rounded-2xl p-5 flex flex-wrap items-center justify-between gap-4 text-white shadow-md">
+        <div className="flex items-center gap-3 flex-1 min-w-60">
+          <span className="rounded-xl bg-emerald-900/80 border border-emerald-700/50 text-emerald-300 p-3" aria-hidden="true">◷</span>
+          <div><h1 className="text-xl font-bold">Active Focus Workbench</h1>
+            <p className="text-xs text-emerald-200/70 mt-1">Work, pause, and resume at your pace. Live session time and dual-currency earnings.</p></div>
         </div>
-        <select
-          className="field w-64"
-          value={selectedId ?? ""}
-          onChange={(e) => setSelectedId(e.target.value)}
-        >
-          {selectable.map((t) => (
-            <option key={t.id} value={t.id}>
-              Task {t.taskNumber} — {t.projectName} ({t.timeSpentMinutes}m logged)
-            </option>
-          ))}
-        </select>
-      </div>
-      <p className="text-sm text-muted -mt-3">
-        Edit fields directly without modal popups. Everything saves to the
-        database instantly.
-      </p>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
-        {/* Timer card */}
-        <div className="card p-6 flex flex-col items-center text-center">
-          <p className="label flex items-center gap-1.5 text-muted">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <circle cx="12" cy="12" r="9" />
-              <path d="M12 7v5l3 3" />
-            </svg>
-            ELAPSED TASK DURATION
-          </p>
-          <p
-            className={`font-mono font-bold text-6xl tabular-nums mt-4 tracking-tight ${
-              running ? "text-emerald-600" : "text-foreground"
-            }`}
-          >
-            {hhmmss(elapsedSeconds)}
-          </p>
-          <p className="chip bg-emerald-50 text-emerald-700 border border-emerald-200 mt-3">
-            {Math.floor(liveElapsedMin / 60)}h {liveElapsedMin % 60}m logged ({liveElapsedMin} minutes)
-          </p>
-
-          <div className="flex items-center gap-2 mt-5 w-full max-w-xs">
-            {running ? (
-              <>
-                <button
-                  className="btn-ghost flex-1 py-3 text-sm font-semibold"
-                  onClick={() => timer("pause")}
-                  disabled={busy}
-                >
-                  ⏸ Pause
-                </button>
-                <button
-                  className="flex-1 py-3 text-sm font-semibold rounded-[0.6rem] bg-red-500 text-white hover:bg-red-600 transition-colors"
-                  onClick={() => timer("stop")}
-                  disabled={busy}
-                >
-                  ⏹ Stop
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  className="btn-primary flex-1 py-3 text-sm font-semibold"
-                  onClick={() => timer(banked > 0 ? "resume" : "start")}
-                  disabled={busy}
-                >
-                  ▶ {banked > 0 ? "Resume Timer" : "Start Timer"}
-                </button>
-                <button
-                  className="btn-ghost w-11 py-3"
-                  title="Reset logged minutes"
-                  onClick={resetTimer}
-                >
-                  ⟲
-                </button>
-              </>
-            )}
-          </div>
-
-          <div className="flex items-center gap-1.5 mt-4 text-xs text-muted">
-            <span>Presets:</span>
-            {[5, 15, -5, -15].map((m) => (
-              <button
-                key={m}
-                onClick={() => adjust(m)}
-                className={`chip border ${
-                  m > 0
-                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                    : "bg-red-50 text-red-600 border-red-200"
-                }`}
-              >
-                {m > 0 ? `+${m}m` : `${m}m`}
+        <div className="rounded-xl bg-emerald-900/50 border border-emerald-700/40 px-4 py-3 text-xs text-emerald-200">
+          In Progress Task: <strong className="ml-2">{task ? `${task.name} · ${task.projectName ?? ""}` : "No task currently in progress"}</strong>
+        </div>
+      </section>
+      {error && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{error}</div>}
+      {notice && <p role="status" className="text-sm text-emerald-800">{notice}</p>}
+      {!loading && !task && <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+        No task currently in progress. Use <strong>+ Log Task</strong> to create your next task, or return a task to In Progress on the <Link href="/" className="underline font-semibold">Task Board</Link>. It will appear here automatically.
+      </div>}
+      {loading ? <div className="card p-10 text-center text-muted">Loading your active task…</div> : (
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,0.7fr)_minmax(0,1fr)] gap-5 items-start">
+          <section className="card focus-panel p-5 text-center">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">◷ Elapsed Task Duration</h2>
+            <p aria-label="Elapsed task duration" className={`font-mono font-bold text-[clamp(2.5rem,5vw,4rem)] tracking-tight tabular-nums mt-3 ${running ? "text-emerald-700" : "text-slate-900"}`}>{clock(elapsedSeconds)}</p>
+            <p className="chip bg-emerald-50 text-emerald-900 border border-emerald-200 mt-2">{Math.floor(minutes / 60)}h {minutes % 60}m logged ({minutes} minutes)</p>
+            <div className="focus-earnings rounded-2xl border border-emerald-200 p-4 text-left mt-4 space-y-3">
+              <div className="flex justify-between items-center gap-2"><h3 className="text-[0.65rem] font-bold uppercase text-emerald-950">🪙 Live Accrued Earnings</h3><span className="text-[0.55rem] text-slate-500 bg-white/80 rounded px-1.5 py-1">REAL-TIME COMPUTE</span></div>
+              <p className="flex flex-wrap items-center justify-between gap-1 text-xs text-slate-600">USD Projected: <strong className="font-mono text-sm text-slate-900">{usdRangeText(usdMin, usdMax)}</strong></p>
+              <p className="flex flex-wrap items-center justify-between gap-1 text-xs text-slate-600">INR Projected {rate > 0 ? `(@${formatRateINR(rate)}):` : ":"} <strong className="font-mono text-sm text-emerald-950">{rate > 0 ? inrRangeText(usdMin * rate, usdMax * rate) : "Rate unavailable"}</strong></p>
+            </div>
+            <div className="flex items-stretch gap-2 mt-3">
+              <button disabled={busy || !task} className={`flex-1 min-w-0 py-3 rounded-xl font-semibold text-sm shadow-sm transition-colors disabled:opacity-50 ${running ? "bg-amber-100 text-amber-900 hover:bg-amber-200" : "bg-emerald-600 text-white hover:bg-emerald-700"}`} onClick={() => act(running ? "pause" : task?.startAt ? "resume" : "start")}>{running ? "Ⅱ Pause Timer" : task?.startAt ? "▶ Resume Timer" : "▶ Start Timer"}</button>
+              <button disabled={busy || !task || (!running && milliseconds === 0)} onClick={() => act("reset")} title="Reset timer to 00:00:00" aria-label="Reset timer to 00:00:00" className="rounded-xl border border-slate-200 bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 text-sm font-semibold transition-colors disabled:opacity-40">
+                <span aria-hidden="true">↺ </span>Reset
               </button>
-            ))}
-          </div>
-
-          <div className="flex items-center gap-1.5 mt-2 text-xs">
-            <span className="text-muted">Custom:</span>
-            <input
-              type="number"
-              min="0"
-              className="field w-20 py-1 text-center"
-              value={customMinutes}
-              onChange={(e) => setCustomMinutes(e.target.value)}
-              placeholder="min"
-            />
-            <button onClick={() => customAdjust(1)} className="chip bg-emerald-50 text-emerald-700 border border-emerald-200">
-              + Add
-            </button>
-            <button onClick={() => customAdjust(-1)} className="chip bg-red-50 text-red-600 border border-red-200">
-              − Deduct
-            </button>
-          </div>
-
-          <div className="w-full mt-6 rounded-xl border border-emerald-200 bg-emerald-50/70 p-4 flex items-center justify-between text-left">
-            <div>
-              <p className="text-[0.65rem] font-bold text-emerald-700/80 uppercase tracking-wide">
-                Live Accrued Earnings
-              </p>
-              <p className="text-[0.6rem] text-emerald-600/70 uppercase tracking-wider mt-0.5">
-                Real-time compute
-              </p>
             </div>
-            <div className="text-right text-sm">
-              <p className="text-muted text-xs">
-                USD Projected:{" "}
-                <span className="font-bold text-emerald-800">
-                  {usdRangeText(usd.min, usd.max)}
-                </span>
-              </p>
-              <p className="text-muted text-xs mt-1">
-                INR Projected{" "}
-                {rate > 0 && <span>(@{formatRateINR(rate)}):</span>}{" "}
-                <span className="font-bold text-emerald-800">
-                  {rate > 0 ? inrRangeText(usd.min * rate, usd.max * rate) : "—"}
-                </span>
-              </p>
+            <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 mt-4 flex flex-wrap justify-center items-center gap-2">
+              <label htmlFor="custom-focus-minutes" className="text-xs text-muted">Custom minutes</label>
+              <input id="custom-focus-minutes" type="number" min="1" max="1000000" step="1" value={customMinutes} onChange={(event) => setCustomMinutes(event.target.value)} className="field !w-24 !py-1.5 text-center" placeholder="min" />
+              <button disabled={busy || !task || !validCustom} onClick={() => act("adjust", 1)} className="rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-3 py-2 disabled:opacity-40">+ Add</button>
+              <button disabled={busy || !task || !validCustom} onClick={() => act("adjust", -1)} className="rounded-lg bg-rose-500 hover:bg-rose-600 text-white text-xs font-semibold px-3 py-2 disabled:opacity-40">− Deduct</button>
             </div>
-          </div>
-        </div>
-
-        {/* Edit card */}
-        <div className="card p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="label flex items-baseline justify-between mb-1.5">
-                <span>Task Number / Header</span>
-                <span className="text-[0.65rem] text-emerald-600">Editable</span>
-              </label>
-              <input
-                type="number"
-                min="1"
-                className="field bg-emerald-50/60 border-emerald-200 font-semibold"
-                defaultValue={task.taskNumber}
-                key={`tasknum-${task.id}-${task.taskNumber}`}
-                onBlur={(e) => {
-                  const v = Math.round(Number(e.target.value));
-                  if (!Number.isNaN(v) && v >= 1 && v !== task.taskNumber)
-                    patch({ taskNumber: v });
-                }}
-              />
+            <p className="text-xs text-muted mt-3">Pause before taking a break. Paused time stays saved, even after closing the app.</p>
+          </section>
+          <section className="card focus-panel p-5 space-y-5">
+            <div className="border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2"><span className="chip bg-emerald-100 text-emerald-950 border border-emerald-300">{task?.name ?? "—"}</span><h2 className="font-bold text-sm">Active Task Workbench</h2></div>
+              <p className="text-xs text-muted mt-1">Edit fields here, then save progress or complete the task.</p>
             </div>
-            <div>
-              <label className="label block mb-1.5">Project</label>
-              <select
-                className="field"
-                value={task.projectId}
-                onChange={(e) => patch({ projectId: e.target.value })}
-              >
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
+            <fieldset disabled={busy || !task} className="space-y-4 disabled:opacity-70">
+              <legend className="sr-only">Active task details</legend>
+              <div className="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 border border-slate-200 p-1">
+                {(["annotation", "review"] as const).map((type) => <button key={type} type="button" aria-pressed={form.taskType === type} onClick={() => edit("taskType", type)} className={`rounded-lg py-2 text-xs font-semibold ${form.taskType === type ? "bg-white border border-emerald-100 text-emerald-950 shadow-sm" : "text-slate-600"}`}>{type === "annotation" ? "📝 Annotation Task" : "🔍 Review Task"}</button>)}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <label className="label">Task name<input type="text" maxLength={200} className="field mt-1.5" value={form.name} onChange={(event) => edit("name", event.target.value)} /></label>
+                <label className="label">Project<select className="field mt-1.5" value={form.projectId} onChange={(event) => edit("projectId", event.target.value)}>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>
+              </div>
+              {review && <ReviewFields workerEmail={form.reviewWorkerEmail} justification={form.reviewJustification} feedback={form.taskerFeedback} onChange={edit} />}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {([
+                  ["taskUuid", review ? "Session ID" : "Task UUID", "e.g. 32f78edc…"],
+                  ["stageUuid", review ? "Pair ID" : "Stage UUID", "e.g. 30692a50…"],
+                ] as const).map(([key, label, placeholder]) => (
+                  <div key={key} className="min-w-0">
+                    <label htmlFor={key} className="label">{label}</label>
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <input id={key} className="field min-w-0 font-mono font-normal text-xs" value={form[key]}
+                        onChange={event => edit(key, event.target.value)} placeholder={placeholder} />
+                      <CopyButton label={label} value={form[key]} />
+                    </div>
+                  </div>
                 ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="label block mb-1.5">Task UUID</label>
-              <input
-                className="field font-mono text-xs"
-                defaultValue={task.taskUuid}
-                onBlur={(e) =>
-                  e.target.value !== task.taskUuid &&
-                  patch({ taskUuid: e.target.value })
-                }
-              />
-            </div>
-            <div>
-              <label className="label block mb-1.5">Stage UUID</label>
-              <input
-                className="field font-mono text-xs"
-                defaultValue={task.stageUuid}
-                onBlur={(e) =>
-                  e.target.value !== task.stageUuid &&
-                  patch({ stageUuid: e.target.value })
-                }
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="label block mb-1.5">Start Date Time</label>
-              <input
-                type="datetime-local"
-                className="field"
-                value={toDateInputValue(task.startAt)}
-                onChange={(e) =>
-                  patch({ startAt: fromDateInputValue(e.target.value) })
-                }
-              />
-            </div>
-            <div>
-              <label className="label flex items-baseline justify-between mb-1.5">
-                <span>End Date Time</span>
-                <button
-                  className="text-[0.65rem] text-primary font-semibold"
-                  onClick={() => patch({ endAt: new Date().toISOString() })}
-                >
-                  Set Now
-                </button>
-              </label>
-              <input
-                type="datetime-local"
-                className="field"
-                value={toDateInputValue(task.endAt)}
-                onChange={(e) =>
-                  patch({ endAt: fromDateInputValue(e.target.value) })
-                }
-              />
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-line bg-slate-50/60 p-4">
-            <p className="label mb-2.5 flex items-center gap-1.5">
-              <span className="text-amber-500">⌛</span> TASK HOURLY RATES (MIN & MAX)
-            </p>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="label block mb-1.5 text-xs">Min Rate ($/hr – Base)</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.5"
-                  className="field"
-                  defaultValue={task.minRate}
-                  onBlur={(e) =>
-                    Number(e.target.value) !== task.minRate &&
-                    patch({ minRate: Number(e.target.value) })
-                  }
-                />
               </div>
-              <div>
-                <label className="label block mb-1.5 text-xs">Max Rate ($/hr – Bonus)</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.5"
-                  className="field"
-                  defaultValue={task.maxRate}
-                  onBlur={(e) =>
-                    Number(e.target.value) !== task.maxRate &&
-                    patch({ maxRate: Number(e.target.value) })
-                  }
-                />
+              <label className="label block">Task Context / Notes<textarea rows={3} className="field mt-1.5 font-normal" value={form.notes} onChange={(event) => edit("notes", event.target.value)} placeholder="e.g. Multi-turn reasoning, complex formatting…" /></label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <label className="label">Start Date Time<input type="datetime-local" className="field mt-1.5 font-normal" readOnly value={form.startAt} onChange={(event) => edit("startAt", event.target.value)} /><span className="text-[0.65rem] text-muted font-normal">Recorded on the first timer start.</span></label>
+                <label className="label">End Date Time<input aria-label="End Date Time" type="datetime-local" className="field mt-1.5 font-normal" readOnly value={toDateInputValue(task?.endAt)} /><span className="text-[0.65rem] text-muted font-normal">Recorded when you complete the task.</span></label>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <h3 className="text-[0.65rem] font-bold uppercase mb-3">🪙 {review ? "Review Hourly Rate" : "Task Hourly Rates (Min & Max)"}</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <label className="label">{review ? "Hourly Rate ($/hr)" : "Min Rate ($/hr – Base)"}<input type="number" min="0" step="0.01" className="field mt-1.5 !bg-white" value={form.minRate} onChange={(event) => edit("minRate", event.target.value)} /></label>
+                  <label hidden={review} className="label">Max Rate ($/hr – Bonus)<input type="number" min="0" step="0.01" className="field mt-1.5 !bg-white" value={form.maxRate} onChange={(event) => edit("maxRate", event.target.value)} /></label>
+                </div>
+              </div>
+              {review && <ReviewDecision value={form.taskerDecision} onChange={value => edit("taskerDecision", value)} />}
+            </fieldset>
+            <div className="border-t border-slate-100 pt-3 space-y-3">
+              <p className="text-xs text-muted">{unsaved ? "Unsaved field changes · " : ""}Save stores elapsed time and task details. Completion records the end time.</p>
+              <div className="flex flex-wrap gap-2">
+                <button disabled={busy || !task} className="btn-ghost px-4 py-2 text-xs disabled:opacity-50" onClick={() => act("save")}>▣ Save Progress</button>
+                <button disabled={busy || !task} className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2 text-xs shadow-sm disabled:opacity-50" onClick={() => act("complete")}>{review ? "✓ Complete Review" : "✓ Complete Task & Send to Review"}</button>
               </div>
             </div>
-          </div>
-
-          <div>
-            <label className="label block mb-1.5">Task Context / Notes</label>
-            <textarea
-              className="field"
-              rows={3}
-              defaultValue={task.notes}
-              onBlur={(e) =>
-                e.target.value !== task.notes && patch({ notes: e.target.value })
-              }
-              placeholder="e.g. Multi-turn reasoning, complex formatting…"
-            />
-          </div>
-
-          {error && <p className="text-sm text-red-600">{error}</p>}
-
-          <div className="flex items-center justify-between gap-2 pt-2 border-t border-line">
-            <p className="text-[0.7rem] text-muted flex items-center gap-1.5">
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7l8-4z" />
-              </svg>
-              Saves elapsed time and rates to the database.
-            </p>
-            <div className="flex gap-2">
-              <button className="btn-ghost px-4 py-2 text-sm" onClick={() => load()}>
-                💾 Save Progress
-              </button>
-              <button
-                className="btn-primary px-4 py-2 text-sm"
-                onClick={completeAndReview}
-              >
-                ✓ Complete Task & Send to Review
-              </button>
-            </div>
-          </div>
+          </section>
         </div>
-      </div>
+      )}
     </div>
   );
 }
