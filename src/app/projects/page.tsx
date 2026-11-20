@@ -26,7 +26,7 @@ export default function ProjectsPage() {
     const payload = {
       name: form.name.trim(),
       minRate: Number(form.minRate || 0),
-      maxRate: Number(form.maxRate || 0),
+      maxRate: Number(form.maxRate || form.minRate || 0),
     };
     if (!payload.name) {
       setError("Project name is required");
@@ -113,7 +113,7 @@ export default function ProjectsPage() {
               className="field"
               value={form.maxRate}
               onChange={(e) => setForm({ ...form, maxRate: e.target.value })}
-              placeholder="90"
+              placeholder={form.minRate || "90"}
             />
           </div>
         </div>

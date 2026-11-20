@@ -1,4 +1,4 @@
-import { asc, eq, sql } from "drizzle-orm";
+import { asc, desc, eq, sql } from "drizzle-orm";
 import { db } from "@database/client";
 import { projects, tasks } from "@database/schema";
 import { bad, ok, serverError } from "@/lib/api";
@@ -18,7 +18,7 @@ export async function GET() {
       .from(projects)
       .leftJoin(tasks, eq(tasks.projectId, projects.id))
       .groupBy(projects.id)
-      .orderBy(asc(projects.createdAt));
+      .orderBy(desc(projects.createdAt), asc(projects.name));
 
     return ok(
       rows.map((r) => ({
@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     if (!name) return bad("Project name is required");
     if (Number.isNaN(minRate) || Number.isNaN(maxRate) || minRate < 0 || maxRate < 0)
       return bad("Rates must be non-zero-positive numbers");
-    if (maxRate > 0 && minRate > maxRate)
+    if (minRate > maxRate)
       return bad("Min rate cannot exceed max rate");
 
     const [row] = await db
