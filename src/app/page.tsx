@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Project, Task } from "@/lib/types";
+import TaskFilterBar from "@/components/TaskFilterBar";
+import { emptyTaskFilters, filterCount, filterTasks, summarizeTasks } from "@/lib/task-filters";
+import PayoutHero from "@/components/PayoutHero";
 import KanbanCard from "@/components/KanbanCard";
 import TaskModal from "@/components/TaskModal";
 import {
-  formatHoursSummary,
   formatUSD,
   formatINR,
   formatRateINR,
@@ -27,45 +29,42 @@ interface Stats {
   approvalRate: number | null;
   reviewedCount: number;
   ledger: { count: number; totalUsd: number; totalInr: number };
-  byStatusUsdMin: number;
-  byStatusUsdMax: number;
+  byStatusUsd: number;
 }
+
+const initialCardLimit = 5;
 
 const columns = [
   {
     group: "in_progress" as const,
     title: "In Progress",
-    dot: "bg-amber-400",
-    side: "All active",
+    dot: "bg-amber-500",
     tint: "bg-amber-50/70 border-amber-100",
   },
   {
     group: "completed" as const,
     title: "Completed & Verified",
-    dot: "bg-emerald-500",
-    side: "Recent 5",
+    dot: "bg-emerald-600",
     tint: "bg-emerald-50/70 border-emerald-100",
   },
   {
     group: "paid" as const,
     title: "Paid & Closed",
-    dot: "bg-violet-500",
-    side: "Settled",
-    tint: "bg-violet-50/70 border-violet-100",
+    dot: "bg-purple-600",
+    tint: "bg-purple-50/70 border-purple-100",
   },
 ];
 
 export default function Dashboard() {
-  const [stats, setStats] = useState<Stats | null>(null);
+  const [baseStats, setStats] = useState<Stats | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [editing, setEditing] = useState<Task | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [stageFilter, setStageFilter] = useState("all");
-  const [projectFilter, setProjectFilter] = useState("all");
-  const [reviewFilter, setReviewFilter] = useState("all");
-  const [commentsOnly, setCommentsOnly] = useState(false);
+  const [filters, setFilters] = useState(emptyTaskFilters);
+  const [statusError, setStatusError] = useState("");
+  const [expanded, setExpanded] = useState<Partial<Record<typeof columns[number]["group"], boolean>>>({});
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -87,38 +86,28 @@ export default function Dashboard() {
     return () => window.removeEventListener("tasks-changed", handler);
   }, [load]);
 
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase();
-    return tasks.filter((t) => {
-      if (t.statusShowOnBoard === false) return false;
-      if (stageFilter !== "all" && t.statusKanbanGroup !== stageFilter) return false;
-      if (projectFilter !== "all" && t.projectId !== projectFilter) return false;
-      if (reviewFilter !== "all" && t.approvalStatus !== reviewFilter) return false;
-      if (commentsOnly && !t.reviewerComment) return false;
-      if (!q) return true;
-      return (
-        `task ${t.taskNumber}`.toLowerCase().includes(q) ||
-        t.taskUuid.toLowerCase().includes(q) ||
-        t.stageUuid.toLowerCase().includes(q) ||
-        t.notes.toLowerCase().includes(q)
-      );
-    });
-  }, [tasks, search, stageFilter, projectFilter, reviewFilter, commentsOnly]);
-
-  const commentsCount = useMemo(
-    () => tasks.filter((t) => t.statusShowOnBoard !== false && t.reviewerComment).length,
-    [tasks]
-  );
+  const boardTasks = useMemo(() => tasks.filter((task) => task.statusShowOnBoard !== false), [tasks]);
+  const filtered = useMemo(() => filterTasks(boardTasks, search, filters), [boardTasks, search, filters]);
+  const isFiltered = filterCount(filters) > 0 || search.trim().length > 0;
+  const stats = baseStats ? { ...baseStats, ...summarizeTasks(filtered),
+    totalTasks: isFiltered ? filtered.length : tasks.length,
+    revoked: isFiltered ? 0 : tasks.length - boardTasks.length } : null;
 
   async function setStatus(t: Task, statusName: string) {
     const all = await fetch("/api/statuses").then((r) => r.json());
     const target = all.find((s: { name: string }) => s.name === statusName);
     if (!target) return;
-    await fetch(`/api/tasks/${t.id}`, {
+    const response = await fetch(`/api/tasks/${t.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ statusId: target.id }),
     });
+    if (!response.ok) {
+      const data = await response.json();
+      setStatusError(data.error ?? "Unable to change task status");
+      return;
+    }
+    setStatusError("");
     load();
   }
 
@@ -150,7 +139,7 @@ export default function Dashboard() {
   }
 
   async function deleteTask(t: Task) {
-    if (!confirm(`Delete Task ${t.taskNumber}? This cannot be undone.`)) return;
+    if (!confirm(`Delete ${t.name}? This cannot be undone.`)) return;
     await fetch(`/api/tasks/${t.id}`, { method: "DELETE" });
     load();
   }
@@ -165,66 +154,31 @@ export default function Dashboard() {
   const barReady = pct(stats.ready);
   const barPaid = pct(stats.paid);
   const barRevoked = pct(stats.revoked);
-  const byStatusText =
-    stats.byStatusUsdMin === 0 && stats.byStatusUsdMax === 0
-      ? formatUSD(0)
-      : usdRangeText(stats.byStatusUsdMin, stats.byStatusUsdMax);
+  const byStatusText = formatUSD(stats.byStatusUsd);
+  const acceptedCount = filtered.filter((task) => task.taskType !== "review" && task.approvalStatus === "accepted").length;
 
   return (
     <div className="space-y-5">
+      {statusError && <p role="alert" className="rounded-xl bg-rose-50 border border-rose-200 p-3 text-sm text-rose-800">{statusError}</p>}
+      {isFiltered && <p className="text-xs font-semibold text-emerald-700" role="status">Filtered summary · {filtered.length} matching tasks · received payouts remain cumulative</p>}
       {/* Hero banner */}
-      <section
-        className="rounded-2xl p-6 text-white shadow-lg"
-        style={{
-          background:
-            "linear-gradient(90deg, #3b1467 0%, #12071f 50%, #3b1467 100%)",
-        }}
-      >
-        <div className="flex items-start gap-4">
-          <div className="w-11 h-11 rounded-xl bg-white/10 flex items-center justify-center text-xl shrink-0">
-            ₹
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="chip bg-white/10 border border-white/10 text-violet-200/90">
-                ◎ CUMULATIVE WEEKLY PAYOUTS RECEIVED
-              </span>
-              <span className="chip bg-white/5 border border-white/10 text-white/60">
-                {stats.ledger.count} weekly payouts logged
-              </span>
-            </div>
-            <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1">
-              <span className="text-xs font-bold text-violet-200/70 uppercase tracking-wider">
-                Total Paid USD:
-              </span>
-              <span className="text-3xl font-bold">{formatUSD(stats.ledger.totalUsd)}</span>
-              <span className="w-px h-6 bg-white/15 mx-2 hidden sm:block" />
-              <span className="text-xs font-bold text-violet-200/70 uppercase tracking-wider">
-                Total Paid INR:
-              </span>
-              <span className="text-3xl font-bold text-amber-300">{formatINR(stats.ledger.totalInr)}</span>
-            </div>
-            <p className="mt-3 text-xs text-violet-200/60 flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-violet-300/70" />
+      <PayoutHero ledger={stats.ledger}>
               Estimated {usdRangeText(stats.usdMin, stats.usdMax)} · Calculated by Status –{" "}
-              {byStatusText}
-            </p>
-          </div>
-        </div>
-      </section>
+              {byStatusText}{rate > 0 && ` (${formatINR(stats.byStatusUsd * rate)})`}
+      </PayoutHero>
 
       {/* Stat cards */}
-      <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        <div className="flex flex-col gap-4">
-          <div className="card p-3.5 space-y-2 flex-1">
+      <section className="summary-cards grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div className="summary-stack flex flex-col gap-3">
+          <div className="card p-4 space-y-2 flex-1">
             <div className="flex items-center justify-between">
               <p className="text-xs font-bold text-muted uppercase tracking-wider">
                 Total Tasks
               </p>
               <div className="flex items-center gap-1.5">
                 {stats.revoked > 0 && (
-                  <span className="chip bg-red-100 text-red-600 border border-red-200">
-                    <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                  <span className="chip bg-rose-100 text-rose-600 border border-rose-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
                     {stats.revoked} Revoked
                   </span>
                 )}
@@ -235,43 +189,51 @@ export default function Dashboard() {
                 </span>
               </div>
             </div>
-            <p className="text-2xl font-bold">{stats.totalTasks}</p>
+            <div className="flex items-baseline gap-3 flex-wrap">
+            <p className="summary-number font-bold">{stats.totalTasks}</p>
             <p className="text-xs text-muted">
               {stats.inProgress > 0 && <span className="font-medium">{stats.inProgress} In Progress · </span>}
               <span className="text-emerald-600 font-semibold">{stats.ready} ready</span>
               {" · "}
-              <span className="text-violet-600 font-semibold">{stats.paid} paid</span>
+              <span className="text-purple-600 font-semibold">{stats.paid} paid</span>
             </p>
+            </div>
             {stats.revoked > 0 && (
-              <p className="text-xs text-red-500 font-semibold flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+              <p className="text-xs text-rose-500 font-semibold flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
                 {stats.revoked} revoked
               </p>
             )}
             <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden flex">
               <div className="bg-amber-400 h-full" style={{ width: `${barInProgress}%` }} />
-              <div className="bg-emerald-500 h-full" style={{ width: `${barReady}%` }} />
-              <div className="bg-violet-500 h-full" style={{ width: `${barPaid}%` }} />
-              <div className="bg-red-400 h-full" style={{ width: `${barRevoked}%` }} />
+              <div className="bg-emerald-600 h-full" style={{ width: `${barReady}%` }} />
+              <div className="bg-purple-600 h-full" style={{ width: `${barPaid}%` }} />
+              <div className="bg-rose-400 h-full" style={{ width: `${barRevoked}%` }} />
             </div>
           </div>
 
-          <div className="card p-3.5 flex-1 flex flex-col justify-center gap-2">
+          <div className="card p-4 flex-1 flex flex-col justify-center gap-2">
             <div className="flex items-center justify-between">
               <p className="text-xs font-bold text-muted uppercase tracking-wider">
                 Approval Rate
               </p>
-              <span className="w-6 h-6 rounded-md border border-line text-muted flex items-center justify-center text-xs">
+              <span className="summary-icon">
                 %
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <p className="text-2xl font-bold">
-                {stats.approvalRate === null ? "0%" : `${stats.approvalRate}%`}
+              <p className="summary-number font-bold">
+                {stats.approvalRate === null ? "N/A" : `${stats.approvalRate}%`}
               </p>
-              <span className="chip bg-slate-100 text-slate-500 border border-line">
-                {stats.reviewedCount === 0 ? "No reviews" : `${stats.reviewedCount} reviewed`}
+              <span className="chip bg-emerald-50 text-emerald-700 border border-emerald-200">
+                {stats.reviewedCount === 0 ? "No reviews" : `${acceptedCount}/${stats.reviewedCount} pass`}
               </span>
+            </div>
+            <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden flex" aria-hidden="true">
+              {stats.reviewedCount > 0 && <>
+                <div className="bg-emerald-500 h-full" style={{ width: `${acceptedCount / stats.reviewedCount * 100}%` }} />
+                <div className="bg-rose-500 h-full flex-1" />
+              </>}
             </div>
           </div>
         </div>
@@ -281,13 +243,13 @@ export default function Dashboard() {
             <p className="text-xs font-bold text-muted uppercase tracking-wider">
               Total Time
             </p>
-            <span className="text-muted">◷</span>
+            <span className="summary-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="12" cy="12" r="9" /><path d="M12 6v6l4 2" /></svg></span>
           </div>
-          <p className="text-3xl font-bold mt-2">
-            {(stats.totalMinutes / 60).toFixed(1)} <span className="text-xl">hrs</span>
-          </p>
-          <p className="text-xs text-muted">({stats.totalMinutes} mins)</p>
-          <p className="text-sm text-muted mt-auto pt-4">Across all tasks</p>
+          <div className="flex items-baseline flex-wrap gap-x-2 mt-2">
+            <p className="summary-number font-bold">{(stats.totalMinutes / 60).toFixed(2)} hrs</p>
+            <span className="text-sm text-muted">({stats.totalMinutes.toLocaleString()} mins)</span>
+          </div>
+          <p className="text-sm text-muted mt-auto pt-4">{isFiltered ? "Across filtered tasks" : "Across board tasks"}</p>
         </div>
 
         <div className="card p-4 flex flex-col">
@@ -295,26 +257,26 @@ export default function Dashboard() {
             <p className="text-xs font-bold text-muted uppercase tracking-wider">
               USD Payout (Est.)
             </p>
-            <span className="text-emerald-600">$</span>
+            <span className="summary-icon" aria-hidden="true">$</span>
           </div>
-          <p className="text-2xl font-bold text-emerald-700 leading-snug mt-2">
-            {formatUSD(stats.usdMin)} –<br /> {formatUSD(stats.usdMax)}
+          <p className="summary-money font-bold text-slate-900 leading-snug mt-2">
+            {formatUSD(stats.usdMin)}{stats.usdMin !== stats.usdMax && <> –<br />{formatUSD(stats.usdMax)}</>}
           </p>
           <p className="text-sm text-muted mt-auto pt-4">
             Min (${stats.minRateSeen}/h) · Max (${stats.maxRateSeen}/h)
           </p>
         </div>
 
-        <div className="card p-4 flex flex-col !bg-[#0b3d2c] !border-[#0b3d2c] text-white">
+        <div className="card inr-summary p-4 flex flex-col text-white">
           <div className="flex items-center justify-between">
             <p className="text-xs font-bold text-emerald-200/80 uppercase tracking-wider">
               INR Payout (Est.)
             </p>
-            <span className="text-emerald-300">↗</span>
+            <span className="summary-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="m3 17 6-6 4 4 8-10M15 5h6v6" /></svg></span>
           </div>
-          <p className="text-2xl font-bold text-emerald-50 leading-snug mt-2">
-            {rate > 0 ? formatINR(stats.usdMin * rate) : "—"} –<br />{" "}
-            {rate > 0 ? formatINR(stats.usdMax * rate) : ""}
+          <p className="summary-money font-bold text-emerald-50 leading-snug mt-2">
+            {rate > 0 ? formatINR(stats.usdMin * rate) : "—"}
+            {rate > 0 && stats.usdMin !== stats.usdMax && <> –<br />{formatINR(stats.usdMax * rate)}</>}
           </p>
           <p className="text-sm text-emerald-200/80 mt-auto pt-4">
             {rate > 0 ? `Converted at ${formatRateINR(rate)}/USD` : "Rate unavailable"}
@@ -322,142 +284,26 @@ export default function Dashboard() {
         </div>
       </section>
 
-      {/* Filters */}
-      <section className="card p-3 flex flex-nowrap items-center gap-2.5 overflow-x-auto">
-        <div className="w-[336px] shrink-0">
-          <input
-            className="field field-pill"
-            placeholder="Search ID, stage, notes…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-
-        <div className="flex items-center gap-2.5 ml-auto shrink-0">
-        <div className="relative w-40">
-          <svg
-            className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted pointer-events-none"
-            fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
-          >
-            <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" />
-          </svg>
-          <select
-            className="field field-pill field-icon-both appearance-none cursor-pointer"
-            value={stageFilter}
-            onChange={(e) => setStageFilter(e.target.value)}
-          >
-            <option value="all">All Stages</option>
-            <option value="in_progress">In Progress</option>
-            <option value="completed">Completed</option>
-            <option value="paid">Paid</option>
-          </select>
-          <svg
-            className="absolute right-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted pointer-events-none"
-            fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
-          >
-            <path d="m6 9 6 6 6-6" />
-          </svg>
-        </div>
-
-        <div className="relative w-40">
-          <svg
-            className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted pointer-events-none"
-            fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
-          >
-            <path d="M20.59 13.41 12 22l-9-9V4a1 1 0 0 1 1-1h9l7.59 7.59a2 2 0 0 1 0 2.82z" />
-            <circle cx="7.5" cy="7.5" r="1" fill="currentColor" stroke="none" />
-          </svg>
-          <select
-            className="field field-pill field-icon-both appearance-none cursor-pointer"
-            value={projectFilter}
-            onChange={(e) => setProjectFilter(e.target.value)}
-          >
-            <option value="all">All Projects</option>
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-          <svg
-            className="absolute right-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted pointer-events-none"
-            fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
-          >
-            <path d="m6 9 6 6 6-6" />
-          </svg>
-        </div>
-
-        <div className="relative w-44">
-          <svg
-            className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted pointer-events-none"
-            fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
-          >
-            <circle cx="12" cy="12" r="9" /><path d="m8.5 12.5 2.5 2.5 5-5" />
-          </svg>
-          <select
-            className="field field-pill field-icon-both appearance-none cursor-pointer"
-            value={reviewFilter}
-            onChange={(e) => setReviewFilter(e.target.value)}
-          >
-            <option value="all">All Review States</option>
-            <option value="pending">Pending Review</option>
-            <option value="accepted">Accepted</option>
-            <option value="rejected">Rejected</option>
-          </select>
-          <svg
-            className="absolute right-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted pointer-events-none"
-            fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
-          >
-            <path d="m6 9 6 6 6-6" />
-          </svg>
-        </div>
-
-        <button
-          onClick={() => setCommentsOnly((v) => !v)}
-          className={`flex items-center gap-2 rounded-full border px-3.5 py-2 text-sm font-medium transition-colors ${
-            commentsOnly
-              ? "bg-emerald-600 text-white border-emerald-600"
-              : "bg-surface border-line hover:border-emerald-300"
-          }`}
-        >
-          <svg
-            className={`w-4 h-4 ${commentsOnly ? "text-white" : "text-emerald-600"}`}
-            fill="currentColor" viewBox="0 0 24 24"
-          >
-            <path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5c-1.4 0-2.7-.3-3.9-.9L3 21l1.9-5.6A8.5 8.5 0 1 1 21 11.5z" />
-          </svg>
-          <span>Comments</span>
-          <span
-            className={`chip px-1.5 py-0 text-[0.7rem] ${
-              commentsOnly ? "bg-white/20 text-white" : "bg-emerald-100 text-emerald-700"
-            }`}
-          >
-            {commentsCount}
-          </span>
-        </button>
-        <span className="text-sm text-muted">
-          {commentsCount} of {tasks.filter((t) => t.statusShowOnBoard !== false).length}
-        </span>
-        </div>
-      </section>
+      <TaskFilterBar tasks={boardTasks} projects={projects} search={search} onSearch={setSearch}
+        filters={filters} onChange={setFilters} resultCount={filtered.length} />
 
       {/* Kanban */}
       <section className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
         {columns.map((col) => {
           const colTasks = filtered.filter((t) => t.statusKanbanGroup === col.group);
-          const shown =
-            col.group === "completed" ? colTasks.slice(0, 5) : colTasks;
+          const isExpanded = expanded[col.group] ?? false;
+          const remaining = colTasks.length - initialCardLimit;
+          const shown = isExpanded ? colTasks : colTasks.slice(0, initialCardLimit);
           return (
-            <div key={col.group} className={`rounded-2xl border-2 p-5 space-y-4 ${col.tint}`}>
+            <div key={col.group} data-stage={col.group} className={`board-column rounded-2xl border p-5 space-y-4 ${col.tint}`}>
               <div className="flex items-center justify-between px-1">
                 <div className="flex items-center gap-2">
                   <span className={`w-2 h-2 rounded-full ${col.dot}`} />
                   <h2 className="font-bold text-sm">{col.title}</h2>
-                  <span className="chip bg-white border border-line text-muted">
+                  <span className="column-count chip bg-white border border-line text-muted">
                     {colTasks.length}
                   </span>
                 </div>
-                <span className="text-[0.7rem] text-muted">{col.side}</span>
               </div>
 
               {shown.map((t) => (
@@ -477,14 +323,19 @@ export default function Dashboard() {
                 />
               ))}
 
-              {col.group === "completed" && colTasks.length > 5 && (
-                <p className="text-center text-xs text-muted py-1">
-                  + {colTasks.length - 5} older — use the Detailed Sheet
-                </p>
+              {remaining > 0 && (
+                <button
+                  type="button"
+                  aria-expanded={isExpanded}
+                  className="btn-ghost w-full px-3 py-2 text-sm font-semibold"
+                  onClick={() => setExpanded(previous => ({ ...previous, [col.group]: !previous[col.group] }))}
+                >
+                  {isExpanded ? "Show less" : `Show ${remaining} more ${remaining === 1 ? "task" : "tasks"}`}
+                </button>
               )}
 
               {colTasks.length === 0 && (
-                <div className="border-2 border-dashed border-line rounded-xl p-8 text-center min-h-44 flex flex-col items-center justify-center">
+                <div className="empty-column border-2 border-dashed border-line rounded-xl p-8 text-center min-h-44 flex flex-col items-center justify-center">
                   <p className="text-2xl mb-2 opacity-40">{col.group === "paid" ? "₹" : "○"}</p>
                   <p className="text-xs text-muted font-medium">
                     {col.group === "paid"
