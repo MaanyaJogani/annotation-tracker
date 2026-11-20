@@ -1,10 +1,11 @@
 import { eq, sql } from "drizzle-orm";
 import { db } from "@database/client";
 import { projects, settings, statuses, tasks, weeklyPayouts } from "@database/schema";
+import { summarizePayouts } from "@/lib/payout";
 import { ok, serverError } from "@/lib/api";
 
 /** Dashboard aggregates: counts, time, estimate ranges, approval rate,
- *  ledger totals (hero banner) and "by status" (Paid & Closed) totals. */
+ *  ledger totals (hero banner) and reviewed-task payout totals. */
 export async function GET() {
   try {
     const taskRows = await db
@@ -52,28 +53,15 @@ export async function GET() {
 
     const totalMinutes = all.reduce((acc, t) => acc + t.timeSpentMinutes, 0);
 
-    let usdMin = 0;
-    let usdMax = 0;
+    const payouts = summarizePayouts(board);
     let minRateSeen = 0;
     let maxRateSeen = 0;
     for (const t of board) {
-      const hours = t.timeSpentMinutes / 60;
-      usdMin += hours * t.minRate;
-      usdMax += hours * t.maxRate;
       minRateSeen = minRateSeen === 0 ? t.minRate : Math.min(minRateSeen, t.minRate);
-      maxRateSeen = Math.max(maxRateSeen, t.maxRate);
+      maxRateSeen = Math.max(maxRateSeen, t.taskType === "review" ? t.minRate : t.maxRate);
     }
 
-    let byStatusUsdMin = 0;
-    let byStatusUsdMax = 0;
-    for (const t of board) {
-      if (t.statusKanbanGroup !== "paid") continue;
-      const hours = t.timeSpentMinutes / 60;
-      byStatusUsdMin += hours * t.minRate;
-      byStatusUsdMax += hours * t.maxRate;
-    }
-
-    const reviewed = all.filter((t) => t.approvalStatus !== "pending");
+    const reviewed = all.filter((t) => t.taskType !== "review" && t.approvalStatus !== "pending");
     const accepted = reviewed.filter((t) => t.approvalStatus === "accepted").length;
     const approvalRate =
       reviewed.length === 0 ? null : Math.round((accepted / reviewed.length) * 100);
@@ -85,8 +73,7 @@ export async function GET() {
       paid,
       revoked,
       totalMinutes,
-      usdMin,
-      usdMax,
+      ...payouts,
       minRateSeen,
       maxRateSeen,
       rate,
@@ -97,8 +84,6 @@ export async function GET() {
         totalUsd: Number(ledger?.totalUsd ?? 0),
         totalInr: Number(ledger?.totalInr ?? 0),
       },
-      byStatusUsdMin,
-      byStatusUsdMax,
     });
   } catch (err) {
     return serverError(err);
