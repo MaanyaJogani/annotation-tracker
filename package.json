@@ -3,10 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "node scripts/local.mjs dev",
     "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
+    "start": "node scripts/local.mjs start",
+    "db:start": "node scripts/local.mjs db",
+    "db:stop": "node scripts/local.mjs stop",
+    "db:migrate": "node scripts/local.mjs migrate",
+    "db:backup": "node scripts/local.mjs backup",
+    "lint": "eslint",
+    "test:focus": "node scripts/test-focus.cjs"
   },
   "dependencies": {
     "and": "^0.0.3",

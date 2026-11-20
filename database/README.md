@@ -12,7 +12,14 @@ database/
     └── meta/                  # Drizzle journal + snapshots (do not edit)
 ```
 
-## Setup from scratch (fresh machine / fresh DB)
+## Personal local development (recommended)
+
+Run `npm run dev` from the project root. It starts a private database on port
+55432, with persistent data under `.local/postgres`, and applies migrations.
+Use `npm run db:migrate` for migrations and `npm run db:backup` before data or
+schema changes. See the root README for isolation and backup details.
+
+## Manually managed database (alternative)
 
 1. Install PostgreSQL and start it.
 2. Create a role and database (or reuse an existing role):
@@ -30,6 +37,9 @@ database/
    ```
 
 ## Workflow for changes
+
+For the private local database, replace `npx drizzle-kit migrate` below with
+`npm run db:migrate`. The launcher supplies the correct connection automatically.
 
 - **Schema change**: edit `schema.ts` → `npx drizzle-kit generate --name <change>` → review the generated SQL in `migrations/` → `npx drizzle-kit migrate`.
 - **Data seed / backfill**: `npx drizzle-kit generate --custom --name <what>` → write SQL into the generated file → `npx drizzle-kit migrate`.
